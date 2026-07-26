@@ -1,5 +1,7 @@
 # LC29H_GNSS
 
+[![Arduino CLI Validate](https://github.com/bnorth12/LC29H_GNSS-Library/actions/workflows/arduino-cli-validate.yml/badge.svg)](https://github.com/bnorth12/LC29H_GNSS-Library/actions/workflows/arduino-cli-validate.yml)
+
 Configuration-focused Arduino library starter for Quectel LC29H modules.
 
 ## Current status
@@ -302,6 +304,7 @@ Notes:
 4. ESP32BtRoamer now selects Bluetooth transport by target capability: SPP when available, otherwise BLE.
 5. GitHub Actions runs Arduino CLI compile validation on every push for the passing target set in these tables.
 6. Full-size Uno/Nano example failures remain documented here but are intentionally excluded from CI because they are known SRAM-limit cases, not regressions.
+7. A separate GitHub Actions expected-failure job tracks those Uno/Nano SRAM-limit cases so changes to that behavior remain visible without breaking the main validation lane.
 
 ## Project config header
 

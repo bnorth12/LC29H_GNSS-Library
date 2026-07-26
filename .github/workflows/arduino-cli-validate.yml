@@ -66,3 +66,61 @@ jobs:
       - name: Compile ${{ matrix.sketch }}
         run: |
           arduino-cli compile --fqbn ${{ matrix.fqbn }} --library . ${{ matrix.sketch }}
+
+  known-sram-limits:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - fqbn: arduino:avr:uno
+            sketch: examples/BasicConfiguration/BasicConfiguration.ino
+          - fqbn: arduino:avr:uno
+            sketch: examples/SimpleRover/SimpleRover.ino
+          - fqbn: arduino:avr:uno
+            sketch: examples/SimpleBaseStation/SimpleBaseStation.ino
+          - fqbn: arduino:avr:uno
+            sketch: examples/StreamBridge/StreamBridge.ino
+          - fqbn: arduino:avr:uno
+            sketch: examples/BaseSerialBridge/BaseSerialBridge.ino
+          - fqbn: arduino:avr:uno
+            sketch: examples/RoverCorrectionBridge/RoverCorrectionBridge.ino
+          - fqbn: arduino:avr:nano
+            sketch: examples/BasicConfiguration/BasicConfiguration.ino
+          - fqbn: arduino:avr:nano
+            sketch: examples/SimpleRover/SimpleRover.ino
+          - fqbn: arduino:avr:nano
+            sketch: examples/SimpleBaseStation/SimpleBaseStation.ino
+          - fqbn: arduino:avr:nano
+            sketch: examples/StreamBridge/StreamBridge.ino
+          - fqbn: arduino:avr:nano
+            sketch: examples/BaseSerialBridge/BaseSerialBridge.ino
+          - fqbn: arduino:avr:nano
+            sketch: examples/RoverCorrectionBridge/RoverCorrectionBridge.ino
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Arduino CLI
+        uses: arduino/setup-arduino-cli@v2
+        with:
+          version: 1.5.1
+
+      - name: Install AVR core
+        run: |
+          arduino-cli core update-index
+          arduino-cli core install arduino:avr
+
+      - name: Confirm expected SRAM-limit failure for ${{ matrix.sketch }}
+        shell: bash
+        run: |
+          set +e
+          arduino-cli compile --fqbn "${{ matrix.fqbn }}" --library . "${{ matrix.sketch }}"
+          status=$?
+          set -e
+          if [ "$status" -eq 0 ]; then
+            echo "Expected SRAM-limit compile failure, but compile passed. Review README and CI matrix."
+            exit 1
+          fi
+          echo "Observed expected failure for known SRAM-limited target."
