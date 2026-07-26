@@ -1,85 +1,85 @@
-LC29H_GNSS KEYWORD1
-ErrorCode KEYWORD2
-EventType KEYWORD2
-RecoveryPolicy KEYWORD2
-PairAck KEYWORD2
-BridgeMode KEYWORD2
-LocalDebugOutputMode KEYWORD2
+LC29H_GNSS`tKEYWORD1
+ErrorCode`tKEYWORD2
+EventType`tKEYWORD2
+RecoveryPolicy`tKEYWORD2
+PairAck`tKEYWORD2
+BridgeMode`tKEYWORD2
+LocalDebugOutputMode`tKEYWORD2
 
-queryVersion KEYWORD2
-queryQVersion KEYWORD2
-queryUniqueId KEYWORD2
-restoreDefaults KEYWORD2
-resetToDefaults KEYWORD2
-saveConfig KEYWORD2
-configureRover KEYWORD2
-configureBaseStation KEYWORD2
-configureBaseSurveyIn KEYWORD2
-querySurveyIn KEYWORD2
-querySurveyInAndCaptureEcef KEYWORD2
-hasCapturedSurveyEcef KEYWORD2
-getCapturedSurveyEcef KEYWORD2
-setFixedEcef KEYWORD2
-applyCapturedSurveyEcefAsFixed KEYWORD2
-finalizeSurveyInToFixedBase KEYWORD2
-configureBaseFixed KEYWORD2
-setReceiverModeRover KEYWORD2
-setReceiverModeBase KEYWORD2
-queryReceiverMode KEYWORD2
-setMessageRate KEYWORD2
-queryMessageRate KEYWORD2
-enableMessageOutput KEYWORD2
-disableMessageOutput KEYWORD2
-setConstellations KEYWORD2
-queryConstellations KEYWORD2
-setNavMode KEYWORD2
-queryNavMode KEYWORD2
-setNmeaPrecision KEYWORD2
-queryNmeaPrecision KEYWORD2
-setNmeaTalkerId KEYWORD2
-queryNmeaTalkerId KEYWORD2
-setProtocolMask KEYWORD2
-queryProtocolMask KEYWORD2
-setFixRateMs KEYWORD2
-queryFixRate KEYWORD2
-setBaudRate KEYWORD2
-queryBaudRate KEYWORD2
-startGnss KEYWORD2
-stopGnss KEYWORD2
-hotStart KEYWORD2
-warmStart KEYWORD2
-coldStart KEYWORD2
-queryDop KEYWORD2
-queryPvt KEYWORD2
-queryVelocity KEYWORD2
-queryStd KEYWORD2
-queryJammingStatus KEYWORD2
-queryGeoFenceStatus KEYWORD2
-queryOdometer KEYWORD2
-enableRTCM KEYWORD2
-applyRoverPreset KEYWORD2
-applyBaseSurveyPreset KEYWORD2
-applyBaseFixedPreset KEYWORD2
-applyUasRoverProfile KEYWORD2
-applySurveyBaseProfile KEYWORD2
-applyStaticBaseProfile KEYWORD2
-isPowerCycleRecommended KEYWORD2
-clearPowerCycleRecommended KEYWORD2
-sendCommand KEYWORD2
-sendPayload KEYWORD2
-sendSentence KEYWORD2
-writeRaw KEYWORD2
-ingestRawAvailable KEYWORD2
-forwardAvailable KEYWORD2
-forwardNmeaLine KEYWORD2
-forwardBridgeAvailable KEYWORD2
-isNmeaAllowedByFilter KEYWORD2
-tryParsePairAck KEYWORD2
-pairAckResultName KEYWORD2
-printPairAck KEYWORD2
-bridgeModeName KEYWORD2
-localDebugOutputModeName KEYWORD2
-printBridgeStatus KEYWORD2
-printRawIngressStatus KEYWORD2
-readLine KEYWORD2
-processSerialCommands KEYWORD2
+queryVersion`tKEYWORD2
+queryQVersion`tKEYWORD2
+queryUniqueId`tKEYWORD2
+restoreDefaults`tKEYWORD2
+resetToDefaults`tKEYWORD2
+saveConfig`tKEYWORD2
+configureRover`tKEYWORD2
+configureBaseStation`tKEYWORD2
+configureBaseSurveyIn`tKEYWORD2
+querySurveyIn`tKEYWORD2
+querySurveyInAndCaptureEcef`tKEYWORD2
+hasCapturedSurveyEcef`tKEYWORD2
+getCapturedSurveyEcef`tKEYWORD2
+setFixedEcef`tKEYWORD2
+applyCapturedSurveyEcefAsFixed`tKEYWORD2
+finalizeSurveyInToFixedBase`tKEYWORD2
+configureBaseFixed`tKEYWORD2
+setReceiverModeRover`tKEYWORD2
+setReceiverModeBase`tKEYWORD2
+queryReceiverMode`tKEYWORD2
+setMessageRate`tKEYWORD2
+queryMessageRate`tKEYWORD2
+enableMessageOutput`tKEYWORD2
+disableMessageOutput`tKEYWORD2
+setConstellations`tKEYWORD2
+queryConstellations`tKEYWORD2
+setNavMode`tKEYWORD2
+queryNavMode`tKEYWORD2
+setNmeaPrecision`tKEYWORD2
+queryNmeaPrecision`tKEYWORD2
+setNmeaTalkerId`tKEYWORD2
+queryNmeaTalkerId`tKEYWORD2
+setProtocolMask`tKEYWORD2
+queryProtocolMask`tKEYWORD2
+setFixRateMs`tKEYWORD2
+queryFixRate`tKEYWORD2
+setBaudRate`tKEYWORD2
+queryBaudRate`tKEYWORD2
+startGnss`tKEYWORD2
+stopGnss`tKEYWORD2
+hotStart`tKEYWORD2
+warmStart`tKEYWORD2
+coldStart`tKEYWORD2
+queryDop`tKEYWORD2
+queryPvt`tKEYWORD2
+queryVelocity`tKEYWORD2
+queryStd`tKEYWORD2
+queryJammingStatus`tKEYWORD2
+queryGeoFenceStatus`tKEYWORD2
+queryOdometer`tKEYWORD2
+enableRTCM`tKEYWORD2
+applyRoverPreset`tKEYWORD2
+applyBaseSurveyPreset`tKEYWORD2
+applyBaseFixedPreset`tKEYWORD2
+applyUasRoverProfile`tKEYWORD2
+applySurveyBaseProfile`tKEYWORD2
+applyStaticBaseProfile`tKEYWORD2
+isPowerCycleRecommended`tKEYWORD2
+clearPowerCycleRecommended`tKEYWORD2
+sendCommand`tKEYWORD2
+sendPayload`tKEYWORD2
+sendSentence`tKEYWORD2
+writeRaw`tKEYWORD2
+ingestRawAvailable`tKEYWORD2
+forwardAvailable`tKEYWORD2
+forwardNmeaLine`tKEYWORD2
+forwardBridgeAvailable`tKEYWORD2
+isNmeaAllowedByFilter`tKEYWORD2
+tryParsePairAck`tKEYWORD2
+pairAckResultName`tKEYWORD2
+printPairAck`tKEYWORD2
+bridgeModeName`tKEYWORD2
+localDebugOutputModeName`tKEYWORD2
+printBridgeStatus`tKEYWORD2
+printRawIngressStatus`tKEYWORD2
+readLine`tKEYWORD2
+processSerialCommands`tKEYWORD2
