@@ -271,7 +271,7 @@ Verified with:
 
 Repository release:
 
-- v0.1.0
+- v0.1.1
 
 Results:
 
