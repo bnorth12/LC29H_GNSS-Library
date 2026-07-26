@@ -267,6 +267,10 @@ Verified with:
 - arduino:avr 1.8.8
 - esp32:esp32 3.3.11
 
+Repository release:
+
+- v0.1.0
+
 Results:
 
 Generic/reduced examples:
@@ -275,6 +279,13 @@ Generic/reduced examples:
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | arduino:avr:uno | FAIL (RAM overflow) | FAIL (RAM overflow) | FAIL (RAM overflow) | FAIL (RAM overflow) | FAIL (RAM overflow) | FAIL (RAM overflow) | N/A | N/A |
 | arduino:avr:mega | PASS | PASS | PASS | PASS | PASS | PASS | N/A | N/A |
+
+Reduced examples on constrained AVR targets:
+
+| Target FQBN | ReducedCommandConsole | ReducedSerialBridge |
+| --- | --- | --- |
+| arduino:avr:uno | PASS | PASS |
+| arduino:avr:micro | PASS | PASS |
 
 ESP32 consolidated sweep (all ESP32-specific examples):
 
@@ -289,6 +300,8 @@ Notes:
 2. Generic examples are verified on Mega-class AVR hardware.
 3. ESP32-specific examples are validated on both esp32 and esp32s3 targets with Arduino CLI.
 4. ESP32BtRoamer now selects Bluetooth transport by target capability: SPP when available, otherwise BLE.
+5. GitHub Actions runs Arduino CLI compile validation on every push for the passing target set in these tables.
+6. Full-size Uno/Nano example failures remain documented here but are intentionally excluded from CI because they are known SRAM-limit cases, not regressions.
 
 ## Project config header
 

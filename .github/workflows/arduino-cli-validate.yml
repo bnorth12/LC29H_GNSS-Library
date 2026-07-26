@@ -1,0 +1,68 @@
+name: Arduino CLI Validate
+
+on:
+  push:
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - fqbn: arduino:avr:mega
+            sketch: examples/BasicConfiguration/BasicConfiguration.ino
+          - fqbn: arduino:avr:mega
+            sketch: examples/SimpleRover/SimpleRover.ino
+          - fqbn: arduino:avr:mega
+            sketch: examples/SimpleBaseStation/SimpleBaseStation.ino
+          - fqbn: arduino:avr:mega
+            sketch: examples/StreamBridge/StreamBridge.ino
+          - fqbn: arduino:avr:mega
+            sketch: examples/BaseSerialBridge/BaseSerialBridge.ino
+          - fqbn: arduino:avr:mega
+            sketch: examples/RoverCorrectionBridge/RoverCorrectionBridge.ino
+          - fqbn: arduino:avr:uno
+            sketch: examples/ReducedCommandConsole/ReducedCommandConsole.ino
+          - fqbn: arduino:avr:uno
+            sketch: examples/ReducedSerialBridge/ReducedSerialBridge.ino
+          - fqbn: arduino:avr:micro
+            sketch: examples/ReducedCommandConsole/ReducedCommandConsole.ino
+          - fqbn: arduino:avr:micro
+            sketch: examples/ReducedSerialBridge/ReducedSerialBridge.ino
+          - fqbn: esp32:esp32:esp32
+            sketch: examples/ESP32BaseStation/ESP32BaseStation.ino
+          - fqbn: esp32:esp32:esp32s3
+            sketch: examples/ESP32BaseStation/ESP32BaseStation.ino
+          - fqbn: esp32:esp32:esp32
+            sketch: examples/ESP32UsbUartBridge/ESP32UsbUartBridge.ino
+          - fqbn: esp32:esp32:esp32s3
+            sketch: examples/ESP32UsbUartBridge/ESP32UsbUartBridge.ino
+          - fqbn: esp32:esp32:esp32
+            sketch: examples/ESP32BtRoamer/ESP32BtRoamer.ino
+          - fqbn: esp32:esp32:esp32s3
+            sketch: examples/ESP32BtRoamer/ESP32BtRoamer.ino
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Arduino CLI
+        uses: arduino/setup-arduino-cli@v2
+        with:
+          version: 1.5.1
+
+      - name: Configure board indexes
+        run: |
+          arduino-cli config init --overwrite
+          arduino-cli config add board_manager.additional_urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+
+      - name: Install cores
+        run: |
+          arduino-cli core update-index
+          arduino-cli core install arduino:avr
+          arduino-cli core install esp32:esp32
+
+      - name: Compile ${{ matrix.sketch }}
+        run: |
+          arduino-cli compile --fqbn ${{ matrix.fqbn }} --library . ${{ matrix.sketch }}
