@@ -22,7 +22,6 @@
 #include <BluetoothSerial.h>
 #else
 #include <BLEDevice.h>
-#include <BLE2902.h>
 #include <BLEServer.h>
 #include <BLEUtils.h>
 #endif
@@ -82,7 +81,7 @@ public:
         for (size_t i = 0; i < len; ++i) {
             const size_t next = (_head + 1) % kBufferSize;
             if (next == _tail) {
-                ++_dropped;
+                _dropped = _dropped + 1;
                 continue;
             }
             _buffer[_head] = data[i];
@@ -241,7 +240,6 @@ void setup() {
         Serial.println("Bluetooth BLE TX characteristic init failed.");
         return;
     }
-    bleTxChar->addDescriptor(new BLE2902());
 
     service->start();
     BLEAdvertising* advertising = BLEDevice::getAdvertising();
