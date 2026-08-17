@@ -82,6 +82,8 @@ void setup() {
     Serial.println(kPrintLocalNmea ? "on" : "off");
     Serial.print("Forward NMEA to link=");
     Serial.println(kForwardNmeaToLink ? "on" : "off");
+    Serial.println("Bridge allowlist defaults: GGA on, GST off, RMC off, PQTM off.");
+    Serial.println("Use help bridge and help registry in the library console for runtime guidance.");
 
     if (!LC29H_projectConfigAvailable()) {
         Serial.println("lc29hconfig.h is required for RoverCorrectionBridge. Example stays disabled.");

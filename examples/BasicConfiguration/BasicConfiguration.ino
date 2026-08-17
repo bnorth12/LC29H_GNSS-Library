@@ -107,6 +107,7 @@ void setup() {
     }
 
     Serial.println("Type help in Serial Monitor for interactive commands.");
+    Serial.println("Try help registry, help bridge, help placeholders, and help family coreconfiguration.");
 }
 
 void loop() {

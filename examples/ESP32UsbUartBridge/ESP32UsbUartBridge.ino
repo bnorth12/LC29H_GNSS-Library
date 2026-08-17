@@ -108,6 +108,8 @@ void setup() {
     Serial.println("Connect the GNSS module to Serial1 pins and use the second USB-C port as the host-side UART bridge.");
     Serial.println("Expected workflow: run either QGNSS on CH340 or Arduino Serial console commands, not both at once.");
     Serial.println("Quick test: open this console on native USB, then open QGNSS on the CH340 COM port at the configured bridge baud.");
+    Serial.println("Bridge allowlist defaults: GGA on, GST off, RMC off, PQTM off.");
+    Serial.println("Use help bridge and help registry in the library console for runtime guidance.");
     Serial.print("GNSS UART: Serial1 RX=");
     Serial.print(kGnssRxPin);
     Serial.print(", TX=");

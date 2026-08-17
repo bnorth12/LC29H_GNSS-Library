@@ -16,6 +16,7 @@ void setup() {
 
     Serial.println(F("ReducedSerialBridge ready."));
     Serial.println(F("Raw passthrough: USB Serial <-> GNSS UART"));
+    Serial.println(F("Bridge guidance now lives in the main library help: registry, bridge, placeholders, and family summaries."));
 }
 
 void loop() {

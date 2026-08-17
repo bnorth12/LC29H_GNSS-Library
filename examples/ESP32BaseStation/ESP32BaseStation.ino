@@ -63,6 +63,8 @@ void setup() {
     Serial.println("ESP32BaseStation example");
     Serial.println("ESP32-only base station setup with optional RTCM forwarding on Serial2.");
     Serial.println("Console output uses native USB Serial; edit lc29hconfig.h for your board UART GPIO mapping.");
+    Serial.println("Bridge allowlist defaults: GGA on, GST off, RMC off, PQTM off.");
+    Serial.println("Use help bridge and help registry in the library console for runtime guidance.");
     Serial.print("GNSS UART: Serial1 RX=");
     Serial.print(kGnssRxPin);
     Serial.print(", TX=");

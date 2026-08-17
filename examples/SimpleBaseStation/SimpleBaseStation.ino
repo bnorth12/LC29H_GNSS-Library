@@ -78,6 +78,7 @@ void setup() {
     gnss.queryReceiverMode();
     gnss.querySurveyIn();
     Serial.println("Base survey profile ready. Type help for commands.");
+    Serial.println("Use help registry, help bridge, help placeholders, and help family surveyandbase.");
 }
 
 void loop() {

@@ -60,6 +60,70 @@ static bool parseFloatField(const String& s, float& out) {
     return true;
 }
 
+static void printHelpOverview(Stream& console) {
+    console.println("Command groups:");
+    console.println("- Identity: help qver uid");
+    console.println("- Lifecycle: help restore save hot warm cold gnss_start gnss_stop");
+    console.println("- Core configuration: help rover base base_survey base_fixed mode_query msg_on msg_off msg_query baud baud_query fixrate fixrate_query rtcm");
+    console.println("- Survey and base workflows: help profile_uas profile_base_survey profile_base_static survey_capture survey_pos survey_apply survey_finalize");
+    console.println("- Output and diagnostics: help status survey_status rover_status");
+    console.println("- Transport and bridge: help send bridge");
+    console.println("- Registry: help registry metadata family");
+    console.println("- Utilities: help families groups");
+    console.println("Use help <command> for command-specific syntax and purpose.");
+}
+
+static bool isCurrentProvisionalCommand(const char* base) {
+    return base != nullptr && (
+        strcmp(base, "PQTMCFGBASE") == 0 ||
+        strcmp(base, "PQTMMEPE") == 0
+    );
+}
+
+static bool parseFamilyName(const String& input, LC29H_GNSS::CommandFamily& outFamily) {
+    String family = input;
+    family.trim();
+    family.toLowerCase();
+
+    if (family == "identity") {
+        outFamily = LC29H_GNSS::CommandFamily::Identity;
+        return true;
+    }
+    if (family == "lifecycle") {
+        outFamily = LC29H_GNSS::CommandFamily::Lifecycle;
+        return true;
+    }
+    if (family == "coreconfiguration" || family == "core" || family == "config") {
+        outFamily = LC29H_GNSS::CommandFamily::CoreConfiguration;
+        return true;
+    }
+    if (family == "surveyandbase" || family == "survey" || family == "base") {
+        outFamily = LC29H_GNSS::CommandFamily::SurveyAndBase;
+        return true;
+    }
+    if (family == "outputanddiagnostics" || family == "output" || family == "diagnostics") {
+        outFamily = LC29H_GNSS::CommandFamily::OutputAndDiagnostics;
+        return true;
+    }
+    if (family == "transportbridge" || family == "bridge") {
+        outFamily = LC29H_GNSS::CommandFamily::TransportBridge;
+        return true;
+    }
+    if (family == "paircontrol" || family == "pair") {
+        outFamily = LC29H_GNSS::CommandFamily::PairControl;
+        return true;
+    }
+    if (family == "consoleandutility" || family == "console" || family == "utility") {
+        outFamily = LC29H_GNSS::CommandFamily::ConsoleAndUtility;
+        return true;
+    }
+    if (family == "generic") {
+        outFamily = LC29H_GNSS::CommandFamily::Generic;
+        return true;
+    }
+    return false;
+}
+
 static bool printDetailedCommandHelp(Stream* console, const String& helpArgs) {
     String topic = helpArgs;
     topic.trim();
@@ -261,6 +325,52 @@ static bool printDetailedCommandHelp(Stream* console, const String& helpArgs) {
         return true;
     }
 
+    if (topic == "metadata") {
+        console->println("metadata <command>");
+        console->println("Print family, direction, ACK, and field metadata for a command.");
+        console->println("Example: help metadata PQTMCFGSVIN");
+        return true;
+    }
+
+    if (topic == "registry") {
+        console->println("registry");
+        console->println("Print the verified, provisional, and TODO placeholder command inventory.");
+        console->println("Example: help registry");
+        LC29H_GNSS::printCommandFamilySummary(*console);
+        return true;
+    }
+
+    if (topic == "placeholders" || topic == "todo") {
+        console->println("placeholders");
+        console->println("Print the reserved V1.5 placeholder slots and their policy.");
+        console->println("Example: help placeholders");
+        console->println("Use help registry to see the current counts and family breakdown.");
+        return true;
+    }
+
+    if (topic.startsWith("family ")) {
+        const String familyArg = topic.substring(7);
+        LC29H_GNSS::CommandFamily family = LC29H_GNSS::CommandFamily::Generic;
+        if (parseFamilyName(familyArg, family)) {
+            LC29H_GNSS::printCommandFamilyDefaults(*console, family);
+            return true;
+        }
+        console->println("Unknown family. Try help families.");
+        return false;
+    }
+
+    if (topic == "family" || topic == "defaults") {
+        console->println("family <name>");
+        console->println("Print default metadata for a command family.");
+        console->println("Example: help family coreconfiguration");
+        return true;
+    }
+
+    if (topic == "families" || topic == "groups") {
+        printHelpOverview(*console);
+        return true;
+    }
+
     if (topic == "rtcm") {
         console->println("rtcm on|off");
         console->println("Enable or disable RTCM message outputs used by base workflows.");
@@ -272,6 +382,49 @@ static bool printDetailedCommandHelp(Stream* console, const String& helpArgs) {
         console->println("send <PQTM/PAIR payload>");
         console->println("Send raw payload; library wraps it as a checksummed sentence.");
         console->println("Example: send PQTMGNSSSTART");
+        return true;
+    }
+
+    if (topic == "bridge") {
+        console->println("bridge");
+        console->println("Bridge helpers forward RTCM/NMEA/raw bytes while optionally filtering NMEA.");
+        console->println("Modes: ForwardAll, RtcmOnly, RtcmAndNmeaAllowlist");
+        console->println("Allowlist defaults: GGA on, GST off, RMC off, PQTM off");
+        console->println("Examples:");
+        console->println("- help bridge");
+        console->println("- bridge_status");
+        console->println("- bridge_mode RtcmAndNmeaAllowlist");
+        return true;
+    }
+
+    if (topic == "rover" || topic == "base" || topic == "base_survey" || topic == "base_fixed") {
+        console->println("These commands configure the receiver role and base/rover setup.");
+        if (topic == "rover") {
+            console->println("rover [rateMs]");
+            console->println("Set rover profile and optional fix rate in milliseconds.");
+            console->println("Example: rover 200");
+        } else if (topic == "base") {
+            console->println("base");
+            console->println("Set base-station mode with default behavior.");
+        } else if (topic == "base_survey") {
+            console->println("base_survey [minTimeSec] [stdDevM]");
+            console->println("Enable Survey-In base mode with duration and accuracy limits.");
+            console->println("Example: base_survey 300 2.0");
+        } else {
+            console->println("base_fixed <lat> <lon> <alt>");
+            console->println("Enable fixed base coordinates (decimal degrees, meters).");
+            console->println("Example: base_fixed 47.6205 -122.3493 52.4");
+        }
+        return true;
+    }
+
+    if (LC29H_GNSS::findCommandMetadata(topic) != nullptr || LC29H_GNSS::inferCommandFamily(topic) != LC29H_GNSS::CommandFamily::Generic) {
+        LC29H_GNSS::printCommandMetadata(*console, topic);
+        return true;
+    }
+
+    if (LC29H_GNSS::findCommandMetadata(topic) != nullptr || LC29H_GNSS::inferCommandFamily(topic) != LC29H_GNSS::CommandFamily::Generic) {
+        LC29H_GNSS::printCommandMetadata(*console, topic);
         return true;
     }
 
@@ -327,6 +480,12 @@ LC29H_GNSS::LC29H_GNSS(Stream& gnssStream, Stream* debugStream)
                 const size_t bytes = static_cast<size_t>(sanitized.maxPoints) * sizeof(AccuracySample);
                 state.ring = static_cast<AccuracySample*>(malloc(bytes));
                 if (state.ring == nullptr) {
+        if (topic == "metadata") {
+            console->println("metadata <command>");
+            console->println("Print family, direction, ACK, and field metadata for a command.");
+            console->println("Example: help metadata PQTMCFGSVIN");
+            return true;
+        }
                     sanitized.enabled = false;
                     sanitized.maxPoints = 0;
                 } else {
@@ -627,6 +786,10 @@ bool LC29H_GNSS::queryUniqueId() {
     return sendPayload("PQTMUNIQID");
 }
 
+bool LC29H_GNSS::querySerialNumber() {
+    return sendPayload("PQTMSN");
+}
+
 bool LC29H_GNSS::restoreDefaults() {
     return sendPayload("PQTMRESTOREPAR");
 }
@@ -909,6 +1072,19 @@ bool LC29H_GNSS::queryProtocolMask(uint8_t inPort, uint8_t outPort) {
     payload += ",";
     payload += String(outPort);
     return sendPayload(payload);
+}
+
+bool LC29H_GNSS::setPulsePerSecondConfig(const String& argsCsv) {
+    String payload = "PQTMCFGPPS,W";
+    if (argsCsv.length() > 0) {
+        payload += ",";
+        payload += argsCsv;
+    }
+    return sendPayload(payload);
+}
+
+bool LC29H_GNSS::queryPulsePerSecondConfig() {
+    return sendPayload("PQTMCFGPPS,R");
 }
 
 bool LC29H_GNSS::setFixRateMs(uint32_t fixRateMs) {
@@ -1864,6 +2040,405 @@ const char* LC29H_GNSS::localDebugOutputModeName(LocalDebugOutputMode mode) {
     }
 }
 
+const char* LC29H_GNSS::commandFamilyName(CommandFamily family) {
+    switch (family) {
+    case CommandFamily::Identity:
+        return "Identity";
+    case CommandFamily::Lifecycle:
+        return "Lifecycle";
+    case CommandFamily::CoreConfiguration:
+        return "CoreConfiguration";
+    case CommandFamily::SurveyAndBase:
+        return "SurveyAndBase";
+    case CommandFamily::OutputAndDiagnostics:
+        return "OutputAndDiagnostics";
+    case CommandFamily::TransportBridge:
+        return "TransportBridge";
+    case CommandFamily::PairControl:
+        return "PairControl";
+    case CommandFamily::ConsoleAndUtility:
+        return "ConsoleAndUtility";
+    case CommandFamily::Generic:
+        return "Generic";
+    default:
+        return "Unknown";
+    }
+}
+
+const char* LC29H_GNSS::commandDirectionName(CommandDirection direction) {
+    switch (direction) {
+    case CommandDirection::Write:
+        return "Write";
+    case CommandDirection::Read:
+        return "Read";
+    case CommandDirection::ReadWrite:
+        return "ReadWrite";
+    case CommandDirection::Control:
+        return "Control";
+    default:
+        return "Unknown";
+    }
+}
+
+const char* LC29H_GNSS::commandAckKindName(CommandAckKind ackKind) {
+    switch (ackKind) {
+    case CommandAckKind::None:
+        return "None";
+    case CommandAckKind::PairAck:
+        return "PairAck";
+    case CommandAckKind::CommandOkError:
+        return "CommandOkError";
+    case CommandAckKind::StatusLine:
+        return "StatusLine";
+    case CommandAckKind::DirectData:
+        return "DirectData";
+    default:
+        return "Unknown";
+    }
+}
+
+const char* LC29H_GNSS::commandFieldTypeName(CommandFieldType type) {
+    switch (type) {
+    case CommandFieldType::Integer:
+        return "Integer";
+    case CommandFieldType::Unsigned:
+        return "Unsigned";
+    case CommandFieldType::Float:
+        return "Float";
+    case CommandFieldType::Text:
+        return "Text";
+    case CommandFieldType::Boolean:
+        return "Boolean";
+    case CommandFieldType::Bitmask:
+        return "Bitmask";
+    case CommandFieldType::Enum:
+        return "Enum";
+    case CommandFieldType::Degrees:
+        return "Degrees";
+    case CommandFieldType::Milliseconds:
+        return "Milliseconds";
+    case CommandFieldType::Seconds:
+        return "Seconds";
+    case CommandFieldType::Meters:
+        return "Meters";
+    case CommandFieldType::Port:
+        return "Port";
+    case CommandFieldType::Rate:
+        return "Rate";
+    case CommandFieldType::Payload:
+        return "Payload";
+    default:
+        return "Unknown";
+    }
+}
+
+namespace {
+const LC29H_GNSS::CommandFieldSpec kEmptyFieldList[] = {};
+const LC29H_GNSS::CommandFieldSpec kIdentityRequestFields[] = {};
+const LC29H_GNSS::CommandFieldSpec kConfigReadRequestFields[] = {};
+const LC29H_GNSS::CommandFieldSpec kRoverRequestFields[] = {{"rateMs", LC29H_GNSS::CommandFieldType::Milliseconds, true, "ms", "Optional rover fix interval"}};
+const LC29H_GNSS::CommandFieldSpec kBaseSurveyRequestFields[] = {{"minTimeSec", LC29H_GNSS::CommandFieldType::Seconds, true, "s", "Survey-in duration"}, {"minStdDevM", LC29H_GNSS::CommandFieldType::Meters, true, "m", "Survey-in std-dev threshold"}};
+const LC29H_GNSS::CommandFieldSpec kBaseFixedRequestFields[] = {{"latDeg", LC29H_GNSS::CommandFieldType::Degrees, true, "deg", "Latitude in decimal degrees"}, {"lonDeg", LC29H_GNSS::CommandFieldType::Degrees, true, "deg", "Longitude in decimal degrees"}, {"altM", LC29H_GNSS::CommandFieldType::Meters, true, "m", "Altitude in meters"}};
+const LC29H_GNSS::CommandFieldSpec kMessageRequestFields[] = {{"messageName", LC29H_GNSS::CommandFieldType::Text, false, nullptr, "NMEA/PQTM message base"}, {"port", LC29H_GNSS::CommandFieldType::Port, true, nullptr, "Output port"}, {"rate", LC29H_GNSS::CommandFieldType::Rate, true, nullptr, "Output rate"}};
+const LC29H_GNSS::CommandFieldSpec kBaudRequestFields[] = {{"uartPort", LC29H_GNSS::CommandFieldType::Port, true, nullptr, "UART port index"}, {"baudRate", LC29H_GNSS::CommandFieldType::Unsigned, true, "baud", "UART baud rate"}};
+const LC29H_GNSS::CommandFieldSpec kPpsRequestFields[] = {{"argsCsv", LC29H_GNSS::CommandFieldType::Payload, true, nullptr, "Firmware-specific PPS payload"}};
+const LC29H_GNSS::CommandFieldSpec kPairWriteFields[] = {{"pairPayload", LC29H_GNSS::CommandFieldType::Payload, false, nullptr, "PAIR command body"}};
+
+const LC29H_GNSS::CommandResponseSpec kPairAckResponse = {"PAIR001", LC29H_GNSS::CommandAckKind::PairAck, "PAIR command acknowledgement"};
+const LC29H_GNSS::CommandResponseSpec kStatusLineResponse = {nullptr, LC29H_GNSS::CommandAckKind::StatusLine, "Parsed status line or data response"};
+
+const LC29H_GNSS::CommandFamilyDefaults kFamilyDefaults[] = {
+    {LC29H_GNSS::CommandFamily::Identity, "Identity", "Identity and discovery commands", LC29H_GNSS::CommandDirection::Read, LC29H_GNSS::CommandAckKind::DirectData, kIdentityRequestFields, 0, &kStatusLineResponse, 0, true},
+    {LC29H_GNSS::CommandFamily::Lifecycle, "Lifecycle", "Restore/save and receiver lifecycle commands", LC29H_GNSS::CommandDirection::Control, LC29H_GNSS::CommandAckKind::CommandOkError, kEmptyFieldList, 0, &kStatusLineResponse, 0, true},
+    {LC29H_GNSS::CommandFamily::CoreConfiguration, "CoreConfiguration", "Receiver configuration commands", LC29H_GNSS::CommandDirection::ReadWrite, LC29H_GNSS::CommandAckKind::StatusLine, kConfigReadRequestFields, 0, &kStatusLineResponse, 0, true},
+    {LC29H_GNSS::CommandFamily::SurveyAndBase, "SurveyAndBase", "Survey-in and fixed-base workflows", LC29H_GNSS::CommandDirection::ReadWrite, LC29H_GNSS::CommandAckKind::StatusLine, kBaseSurveyRequestFields, 0, &kStatusLineResponse, 0, true},
+    {LC29H_GNSS::CommandFamily::OutputAndDiagnostics, "OutputAndDiagnostics", "Status and diagnostic queries", LC29H_GNSS::CommandDirection::Read, LC29H_GNSS::CommandAckKind::DirectData, kEmptyFieldList, 0, &kStatusLineResponse, 0, true},
+    {LC29H_GNSS::CommandFamily::TransportBridge, "TransportBridge", "Raw byte and bridge helpers", LC29H_GNSS::CommandDirection::Control, LC29H_GNSS::CommandAckKind::None, kEmptyFieldList, 0, kEmptyFieldList, 0, true},
+    {LC29H_GNSS::CommandFamily::PairControl, "PairControl", "PAIR command and ACK helpers", LC29H_GNSS::CommandDirection::Control, LC29H_GNSS::CommandAckKind::PairAck, kPairWriteFields, 0, &kPairAckResponse, 0, true},
+    {LC29H_GNSS::CommandFamily::ConsoleAndUtility, "ConsoleAndUtility", "Console and helper commands", LC29H_GNSS::CommandDirection::Control, LC29H_GNSS::CommandAckKind::None, kEmptyFieldList, 0, kEmptyFieldList, 0, true},
+    {LC29H_GNSS::CommandFamily::Generic, "Generic", "Generic fallback commands", LC29H_GNSS::CommandDirection::Write, LC29H_GNSS::CommandAckKind::None, kEmptyFieldList, 0, kEmptyFieldList, 0, true}
+};
+
+const LC29H_GNSS::CommandMetadata kKnownMetadata[] = {
+    {"PQTMVERNO", "queryVersion", LC29H_GNSS::CommandFamily::Identity, LC29H_GNSS::CommandDirection::Read, LC29H_GNSS::CommandAckKind::DirectData, "Query module firmware/variant", nullptr, nullptr, false, false, true, kIdentityRequestFields, 0, &kStatusLineResponse, kEmptyFieldList, 0},
+    {"PQTMQVER", "queryQVersion", LC29H_GNSS::CommandFamily::Identity, LC29H_GNSS::CommandDirection::Read, LC29H_GNSS::CommandAckKind::DirectData, "Query firmware/protocol version details", nullptr, nullptr, false, false, true, kIdentityRequestFields, 0, &kStatusLineResponse, kEmptyFieldList, 0},
+    {"PQTMUNIQID", "queryUniqueId", LC29H_GNSS::CommandFamily::Identity, LC29H_GNSS::CommandDirection::Read, LC29H_GNSS::CommandAckKind::DirectData, "Query module unique ID", nullptr, nullptr, false, false, true, kIdentityRequestFields, 0, &kStatusLineResponse, kEmptyFieldList, 0},
+    {"PQTMSN", "querySerialNumber", LC29H_GNSS::CommandFamily::Identity, LC29H_GNSS::CommandDirection::Read, LC29H_GNSS::CommandAckKind::DirectData, "Query serial number or similar identity data", nullptr, nullptr, false, false, true, kIdentityRequestFields, 0, &kStatusLineResponse, kEmptyFieldList, 0},
+    {"PQTMRESTOREPAR", "restoreDefaults", LC29H_GNSS::CommandFamily::Lifecycle, LC29H_GNSS::CommandDirection::Control, LC29H_GNSS::CommandAckKind::CommandOkError, "Restore receiver defaults", nullptr, nullptr, false, false, true, kEmptyFieldList, 0, &kStatusLineResponse, kEmptyFieldList, 0},
+    {"PQTMSAVEPAR", "saveConfig", LC29H_GNSS::CommandFamily::Lifecycle, LC29H_GNSS::CommandDirection::Control, LC29H_GNSS::CommandAckKind::CommandOkError, "Save current configuration to flash", nullptr, nullptr, true, true, true, kEmptyFieldList, 0, &kStatusLineResponse, kEmptyFieldList, 0},
+    {"PQTMGNSSSTART", "startGnss", LC29H_GNSS::CommandFamily::Lifecycle, LC29H_GNSS::CommandDirection::Control, LC29H_GNSS::CommandAckKind::CommandOkError, "Start GNSS engine", nullptr, nullptr, false, false, true, kEmptyFieldList, 0, &kStatusLineResponse, kEmptyFieldList, 0},
+    {"PQTMGNSSSTOP", "stopGnss", LC29H_GNSS::CommandFamily::Lifecycle, LC29H_GNSS::CommandDirection::Control, LC29H_GNSS::CommandAckKind::CommandOkError, "Stop GNSS engine", nullptr, nullptr, false, false, true, kEmptyFieldList, 0, &kStatusLineResponse, kEmptyFieldList, 0},
+    {"PQTMHOT", "hotStart", LC29H_GNSS::CommandFamily::Lifecycle, LC29H_GNSS::CommandDirection::Control, LC29H_GNSS::CommandAckKind::CommandOkError, "Hot restart", nullptr, nullptr, false, false, true, kEmptyFieldList, 0, &kStatusLineResponse, kEmptyFieldList, 0},
+    {"PQTMWARM", "warmStart", LC29H_GNSS::CommandFamily::Lifecycle, LC29H_GNSS::CommandDirection::Control, LC29H_GNSS::CommandAckKind::CommandOkError, "Warm restart", nullptr, nullptr, false, false, true, kEmptyFieldList, 0, &kStatusLineResponse, kEmptyFieldList, 0},
+    {"PQTMCOLD", "coldStart", LC29H_GNSS::CommandFamily::Lifecycle, LC29H_GNSS::CommandDirection::Control, LC29H_GNSS::CommandAckKind::CommandOkError, "Cold restart", nullptr, nullptr, false, false, true, kEmptyFieldList, 0, &kStatusLineResponse, kEmptyFieldList, 0},
+    {"PQTMCFGRCVRMODE", "set/getReceiverMode", LC29H_GNSS::CommandFamily::CoreConfiguration, LC29H_GNSS::CommandDirection::ReadWrite, LC29H_GNSS::CommandAckKind::StatusLine, "Receiver mode control", nullptr, nullptr, false, false, true, kConfigReadRequestFields, 0, &kStatusLineResponse, kEmptyFieldList, 0},
+    {"PQTMCFGMSGRATE", "set/queryMessageRate", LC29H_GNSS::CommandFamily::CoreConfiguration, LC29H_GNSS::CommandDirection::ReadWrite, LC29H_GNSS::CommandAckKind::StatusLine, "Message rate control", nullptr, nullptr, false, false, true, kMessageRequestFields, 0, &kStatusLineResponse, kEmptyFieldList, 0},
+    {"PQTMCFGFIXRATE", "set/queryFixRateMs", LC29H_GNSS::CommandFamily::CoreConfiguration, LC29H_GNSS::CommandDirection::ReadWrite, LC29H_GNSS::CommandAckKind::StatusLine, "Navigation fix interval control", nullptr, nullptr, false, false, true, kRoverRequestFields, 0, &kStatusLineResponse, kEmptyFieldList, 0},
+    {"PQTMCFGUART", "set/queryBaudRate", LC29H_GNSS::CommandFamily::CoreConfiguration, LC29H_GNSS::CommandDirection::ReadWrite, LC29H_GNSS::CommandAckKind::StatusLine, "UART configuration", nullptr, nullptr, false, false, true, kBaudRequestFields, 0, &kStatusLineResponse, kEmptyFieldList, 0},
+    {"PQTMCFGPROT", "set/queryProtocolMask", LC29H_GNSS::CommandFamily::CoreConfiguration, LC29H_GNSS::CommandDirection::ReadWrite, LC29H_GNSS::CommandAckKind::StatusLine, "Protocol mask control", nullptr, nullptr, false, false, true, kEmptyFieldList, 0, &kStatusLineResponse, kEmptyFieldList, 0},
+    {"PQTMCFGCNST", "set/queryConstellations", LC29H_GNSS::CommandFamily::CoreConfiguration, LC29H_GNSS::CommandDirection::ReadWrite, LC29H_GNSS::CommandAckKind::StatusLine, "Constellation selection", nullptr, nullptr, false, false, true, kEmptyFieldList, 0, &kStatusLineResponse, kEmptyFieldList, 0},
+    {"PQTMCFGNAVMODE", "set/queryNavMode", LC29H_GNSS::CommandFamily::CoreConfiguration, LC29H_GNSS::CommandDirection::ReadWrite, LC29H_GNSS::CommandAckKind::StatusLine, "Navigation mode control", nullptr, nullptr, false, false, true, kEmptyFieldList, 0, &kStatusLineResponse, kEmptyFieldList, 0},
+    {"PQTMCFGNMEADP", "set/queryNmeaPrecision", LC29H_GNSS::CommandFamily::CoreConfiguration, LC29H_GNSS::CommandDirection::ReadWrite, LC29H_GNSS::CommandAckKind::StatusLine, "NMEA decimal precision", nullptr, nullptr, false, false, true, kEmptyFieldList, 0, &kStatusLineResponse, kEmptyFieldList, 0},
+    {"PQTMCFGNMEATID", "set/queryNmeaTalkerId", LC29H_GNSS::CommandFamily::CoreConfiguration, LC29H_GNSS::CommandDirection::ReadWrite, LC29H_GNSS::CommandAckKind::StatusLine, "NMEA talker ID control", nullptr, nullptr, false, false, true, kEmptyFieldList, 0, &kStatusLineResponse, kEmptyFieldList, 0},
+    {"PQTMCFGPPS", "set/queryPulsePerSecondConfig", LC29H_GNSS::CommandFamily::CoreConfiguration, LC29H_GNSS::CommandDirection::ReadWrite, LC29H_GNSS::CommandAckKind::StatusLine, "Pulse-per-second configuration", nullptr, nullptr, false, false, true, kPpsRequestFields, 0, &kStatusLineResponse, kEmptyFieldList, 0},
+    {"PQTMCFGSVIN", "configureBaseSurveyIn/querySurveyIn", LC29H_GNSS::CommandFamily::SurveyAndBase, LC29H_GNSS::CommandDirection::ReadWrite, LC29H_GNSS::CommandAckKind::StatusLine, "Survey-In and fixed-base workflow", nullptr, nullptr, true, true, true, kBaseSurveyRequestFields, 0, &kStatusLineResponse, kEmptyFieldList, 0},
+    {"PQTMCFGBASE", "configureBaseFixed", LC29H_GNSS::CommandFamily::SurveyAndBase, LC29H_GNSS::CommandDirection::Write, LC29H_GNSS::CommandAckKind::StatusLine, "Fixed-base latitude/longitude/altitude setup", nullptr, nullptr, true, true, true, kBaseFixedRequestFields, 0, &kStatusLineResponse, kEmptyFieldList, 0},
+    {"PQTMPVT", "queryPvt", LC29H_GNSS::CommandFamily::OutputAndDiagnostics, LC29H_GNSS::CommandDirection::Read, LC29H_GNSS::CommandAckKind::DirectData, "PVT output query", nullptr, nullptr, false, false, true, kEmptyFieldList, 0, &kStatusLineResponse, kEmptyFieldList, 0},
+    {"PQTMVEL", "queryVelocity", LC29H_GNSS::CommandFamily::OutputAndDiagnostics, LC29H_GNSS::CommandDirection::Read, LC29H_GNSS::CommandAckKind::DirectData, "Velocity output query", nullptr, nullptr, false, false, true, kEmptyFieldList, 0, &kStatusLineResponse, kEmptyFieldList, 0},
+    {"PQTMSTD", "queryStd", LC29H_GNSS::CommandFamily::OutputAndDiagnostics, LC29H_GNSS::CommandDirection::Read, LC29H_GNSS::CommandAckKind::DirectData, "Standard deviation output query", nullptr, nullptr, false, false, true, kEmptyFieldList, 0, &kStatusLineResponse, kEmptyFieldList, 0},
+    {"PQTMDOP", "queryDop", LC29H_GNSS::CommandFamily::OutputAndDiagnostics, LC29H_GNSS::CommandDirection::Read, LC29H_GNSS::CommandAckKind::DirectData, "DOP output query", nullptr, nullptr, false, false, true, kEmptyFieldList, 0, &kStatusLineResponse, kEmptyFieldList, 0},
+    {"PQTMJAMMINGSTATUS", "queryJammingStatus", LC29H_GNSS::CommandFamily::OutputAndDiagnostics, LC29H_GNSS::CommandDirection::Read, LC29H_GNSS::CommandAckKind::DirectData, "Jamming/interference output query", nullptr, nullptr, false, false, true, kEmptyFieldList, 0, &kStatusLineResponse, kEmptyFieldList, 0},
+    {"PQTMGEOFENCESTATUS", "queryGeoFenceStatus", LC29H_GNSS::CommandFamily::OutputAndDiagnostics, LC29H_GNSS::CommandDirection::Read, LC29H_GNSS::CommandAckKind::DirectData, "Geofence output query", nullptr, nullptr, false, false, true, kEmptyFieldList, 0, &kStatusLineResponse, kEmptyFieldList, 0},
+    {"PQTMODO", "queryOdometer", LC29H_GNSS::CommandFamily::OutputAndDiagnostics, LC29H_GNSS::CommandDirection::Read, LC29H_GNSS::CommandAckKind::DirectData, "Odometer output query", nullptr, nullptr, false, false, true, kEmptyFieldList, 0, &kStatusLineResponse, kEmptyFieldList, 0},
+    {"PQTMSVINSTATUS", "viaMessageRateHelpers", LC29H_GNSS::CommandFamily::OutputAndDiagnostics, LC29H_GNSS::CommandDirection::Read, LC29H_GNSS::CommandAckKind::DirectData, "Survey-In status output", nullptr, nullptr, false, false, true, kEmptyFieldList, 0, &kStatusLineResponse, kEmptyFieldList, 0},
+    {"PQTMMEPE", "noDedicatedWrapper", LC29H_GNSS::CommandFamily::OutputAndDiagnostics, LC29H_GNSS::CommandDirection::Read, LC29H_GNSS::CommandAckKind::DirectData, "Estimated error query", nullptr, nullptr, false, false, true, kEmptyFieldList, 0, &kStatusLineResponse, kEmptyFieldList, 0},
+    {"PAIR004", "genericSendHelper", LC29H_GNSS::CommandFamily::PairControl, LC29H_GNSS::CommandDirection::Control, LC29H_GNSS::CommandAckKind::PairAck, "PAIR family member observed in ModeInfo.json", nullptr, nullptr, false, false, true, kPairWriteFields, 0, &kPairAckResponse, kEmptyFieldList, 0},
+    {"PAIR005", "genericSendHelper", LC29H_GNSS::CommandFamily::PairControl, LC29H_GNSS::CommandDirection::Control, LC29H_GNSS::CommandAckKind::PairAck, "PAIR family member observed in ModeInfo.json", nullptr, nullptr, false, false, true, kPairWriteFields, 0, &kPairAckResponse, kEmptyFieldList, 0},
+    {"PAIR006", "genericSendHelper", LC29H_GNSS::CommandFamily::PairControl, LC29H_GNSS::CommandDirection::Control, LC29H_GNSS::CommandAckKind::PairAck, "PAIR family member observed in ModeInfo.json", nullptr, nullptr, false, false, true, kPairWriteFields, 0, &kPairAckResponse, kEmptyFieldList, 0},
+    {"PAIR007", "genericSendHelper", LC29H_GNSS::CommandFamily::PairControl, LC29H_GNSS::CommandDirection::Control, LC29H_GNSS::CommandAckKind::PairAck, "PAIR family member observed in ModeInfo.json", nullptr, nullptr, false, false, true, kPairWriteFields, 0, &kPairAckResponse, kEmptyFieldList, 0},
+    {"PAIR023", "genericSendHelper", LC29H_GNSS::CommandFamily::PairControl, LC29H_GNSS::CommandDirection::Control, LC29H_GNSS::CommandAckKind::PairAck, "PAIR family member observed in ModeInfo.json", nullptr, nullptr, false, false, true, kPairWriteFields, 0, &kPairAckResponse, kEmptyFieldList, 0},
+    {"PAIR001", "readPairAck/tryParsePairAck", LC29H_GNSS::CommandFamily::PairControl, LC29H_GNSS::CommandDirection::Read, LC29H_GNSS::CommandAckKind::PairAck, "PAIR acknowledgement capture", nullptr, nullptr, false, false, true, kPairWriteFields, 0, &kPairAckResponse, kEmptyFieldList, 0}
+};
+
+const LC29H_GNSS::CommandMetadata* findKnownMetadata(const String& commandOrPayload) {
+    String normalized = normalizeSentence(commandOrPayload);
+    normalized.trim();
+    normalized.toUpperCase();
+    const int comma = normalized.indexOf(',');
+    const String base = (comma < 0) ? normalized : normalized.substring(0, comma);
+
+    for (const auto& entry : kKnownMetadata) {
+        if (base == entry.base) {
+            return &entry;
+        }
+    }
+
+    return nullptr;
+}
+
+const LC29H_GNSS::CommandFamilyDefaults* findFamilyDefaults(LC29H_GNSS::CommandFamily family) {
+    for (const auto& defaults : kFamilyDefaults) {
+        if (defaults.family == family) {
+            return &defaults;
+        }
+    }
+    return nullptr;
+}
+} // namespace
+
+const LC29H_GNSS::CommandFamilyDefaults* LC29H_GNSS::getCommandFamilyDefaults(CommandFamily family) {
+    return findFamilyDefaults(family);
+}
+
+LC29H_GNSS::CommandFamily LC29H_GNSS::inferCommandFamily(const String& commandOrPayload) {
+    if (const CommandMetadata* metadata = findKnownMetadata(commandOrPayload)) {
+        return metadata->family;
+    }
+
+    String normalized = normalizeSentence(commandOrPayload);
+    normalized.trim();
+    normalized.toUpperCase();
+    if (normalized.length() == 0) {
+        return CommandFamily::Generic;
+    }
+
+    const int comma = normalized.indexOf(',');
+    const String base = (comma < 0) ? normalized : normalized.substring(0, comma);
+
+    if (base.startsWith("PAIR")) {
+        return CommandFamily::PairControl;
+    }
+    if (base.startsWith("PQTMCFG")) {
+        return CommandFamily::CoreConfiguration;
+    }
+    if (base.startsWith("PQTM")) {
+        return CommandFamily::OutputAndDiagnostics;
+    }
+    return CommandFamily::Generic;
+}
+
+LC29H_GNSS::CommandMetadata LC29H_GNSS::inferCommandMetadata(const String& commandOrPayload) {
+    if (const CommandMetadata* metadata = findKnownMetadata(commandOrPayload)) {
+        return *metadata;
+    }
+
+    CommandMetadata metadata;
+    metadata.family = inferCommandFamily(commandOrPayload);
+    if (const CommandFamilyDefaults* defaults = getCommandFamilyDefaults(metadata.family)) {
+        metadata.direction = defaults->defaultDirection;
+        metadata.ackKind = defaults->defaultAckKind;
+        metadata.requestFields = defaults->defaultRequestFields;
+        metadata.requestFieldCount = defaults->defaultRequestFieldCount;
+        metadata.responseFields = defaults->defaultResponseFields;
+        metadata.responseFieldCount = defaults->defaultResponseFieldCount;
+        metadata.genericFallback = defaults->genericFallback;
+        metadata.summary = defaults->summary;
+    } else {
+        metadata.direction = (metadata.family == CommandFamily::PairControl) ? CommandDirection::Control : CommandDirection::Write;
+        metadata.ackKind = (metadata.family == CommandFamily::PairControl) ? CommandAckKind::PairAck : CommandAckKind::None;
+        metadata.summary = "Generic family fallback; use typed wrapper when available";
+        metadata.genericFallback = true;
+    }
+    return metadata;
+}
+
+const LC29H_GNSS::CommandMetadata* LC29H_GNSS::findCommandMetadata(const String& commandOrPayload) {
+    return findKnownMetadata(commandOrPayload);
+}
+
+static void printFieldList(Stream& out, const char* label, const LC29H_GNSS::CommandFieldSpec* fields, size_t fieldCount) {
+    out.print(label);
+    out.println(":");
+    if (fields == nullptr || fieldCount == 0) {
+        out.println("  (none)");
+        return;
+    }
+
+    for (size_t i = 0; i < fieldCount; ++i) {
+        out.print("  - ");
+        out.print(fields[i].name ? fields[i].name : "field");
+        out.print(" (");
+        out.print(LC29H_GNSS::commandFieldTypeName(fields[i].type));
+        out.print(")");
+        if (fields[i].units != nullptr) {
+            out.print(" [");
+            out.print(fields[i].units);
+            out.print("]");
+        }
+        if (fields[i].optional) {
+            out.print(" optional");
+        }
+        if (fields[i].notes != nullptr) {
+            out.print(" - ");
+            out.print(fields[i].notes);
+        }
+        out.println();
+    }
+}
+
+void LC29H_GNSS::printCommandMetadata(Stream& out, const String& commandOrPayload) {
+    const CommandMetadata metadata = inferCommandMetadata(commandOrPayload);
+    String normalized = normalizeSentence(commandOrPayload);
+    normalized.trim();
+    normalized.toUpperCase();
+    const int comma = normalized.indexOf(',');
+    const String base = (comma < 0) ? normalized : normalized.substring(0, comma);
+
+    out.print("Command: ");
+    out.println(base);
+    out.print("Family: ");
+    out.println(commandFamilyName(metadata.family));
+    out.print("Status: ");
+    out.println(isCurrentProvisionalCommand(base.c_str()) ? "provisional" : "verified");
+    out.print("Direction: ");
+    out.println(commandDirectionName(metadata.direction));
+    out.print("ACK: ");
+    out.println(commandAckKindName(metadata.ackKind));
+    out.print("Wrapper: ");
+    out.println(metadata.wrapper != nullptr ? metadata.wrapper : "generic");
+    out.print("Summary: ");
+    out.println(metadata.summary != nullptr ? metadata.summary : "(none)");
+    out.print("Save recommended: ");
+    out.println(metadata.saveRecommended ? "yes" : "no");
+    out.print("Power-cycle recommended: ");
+    out.println(metadata.powerCycleRecommended ? "yes" : "no");
+    out.print("Generic fallback: ");
+    out.println(metadata.genericFallback ? "yes" : "no");
+    printFieldList(out, "Request fields", metadata.requestFields, metadata.requestFieldCount);
+    printFieldList(out, "Response fields", metadata.responseFields, metadata.responseFieldCount);
+    if (metadata.response != nullptr) {
+        out.print("Response prefix: ");
+        out.println(metadata.response->prefix != nullptr ? metadata.response->prefix : "(none)");
+        out.print("Response notes: ");
+        out.println(metadata.response->notes != nullptr ? metadata.response->notes : "(none)");
+    }
+}
+
+void LC29H_GNSS::printCommandFamilySummary(Stream& out) {
+    size_t verifiedCount = 0;
+    size_t provisionalCount = 0;
+
+    for (const auto& entry : kKnownMetadata) {
+        if (isCurrentProvisionalCommand(entry.base)) {
+            ++provisionalCount;
+        } else {
+            ++verifiedCount;
+        }
+    }
+
+    out.println("LC29H command registry summary");
+    out.print("Verified command bases: ");
+    out.println(verifiedCount);
+    out.print("Provisional command bases: ");
+    out.println(provisionalCount);
+    out.println("TODO placeholders: V1.5-001 through V1.5-068");
+
+    for (const auto& defaults : kFamilyDefaults) {
+        size_t familyVerified = 0;
+        size_t familyProvisional = 0;
+
+        for (const auto& entry : kKnownMetadata) {
+            if (entry.family != defaults.family) {
+                continue;
+            }
+            if (isCurrentProvisionalCommand(entry.base)) {
+                ++familyProvisional;
+            } else {
+                ++familyVerified;
+            }
+        }
+
+        out.println();
+        out.print(defaults.familyName != nullptr ? defaults.familyName : commandFamilyName(defaults.family));
+        out.print(": ");
+        out.print(familyVerified);
+        out.print(" verified, ");
+        out.print(familyProvisional);
+        out.println(" provisional");
+
+        for (const auto& entry : kKnownMetadata) {
+            if (entry.family != defaults.family) {
+                continue;
+            }
+
+            out.print("  - ");
+            out.print(entry.base != nullptr ? entry.base : "(unnamed)");
+            out.print(" [");
+            out.print(isCurrentProvisionalCommand(entry.base) ? "provisional" : "verified");
+            out.print("] ");
+            out.print(entry.wrapper != nullptr ? entry.wrapper : "generic");
+            out.print(" - ");
+            out.println(entry.summary != nullptr ? entry.summary : "(none)");
+        }
+    }
+
+    out.println();
+    out.println("Placeholder policy:");
+    out.println("- Reserve the missing V1.5 slots until the canonical Temp extraction or live validation exists.");
+    out.println("- Do not invent new command identities for the TODO slots.");
+}
+
+void LC29H_GNSS::printCommandFamilyDefaults(Stream& out, CommandFamily family) {
+    const CommandFamilyDefaults* defaults = getCommandFamilyDefaults(family);
+    if (defaults == nullptr) {
+        out.println("No family defaults available.");
+        return;
+    }
+
+    out.print("Family: ");
+    out.println(defaults->familyName != nullptr ? defaults->familyName : commandFamilyName(family));
+    out.print("Summary: ");
+    out.println(defaults->summary != nullptr ? defaults->summary : "(none)");
+    out.print("Default direction: ");
+    out.println(commandDirectionName(defaults->defaultDirection));
+    out.print("Default ACK: ");
+    out.println(commandAckKindName(defaults->defaultAckKind));
+    out.print("Generic fallback: ");
+    out.println(defaults->genericFallback ? "yes" : "no");
+    printFieldList(out, "Default request fields", defaults->defaultRequestFields, defaults->defaultRequestFieldCount);
+    printFieldList(out, "Default response fields", defaults->defaultResponseFields, defaults->defaultResponseFieldCount);
+}
+
 bool LC29H_GNSS::tryParsePairAck(const String& line, PairAck& outAck) {
     String s = normalizeSentence(line);
     if (!s.startsWith("PAIR001,")) {
@@ -1904,6 +2479,22 @@ const char* LC29H_GNSS::pairAckResultName(uint8_t result) {
     default:
         return "Unknown";
     }
+}
+
+bool LC29H_GNSS::readPairAck(PairAck& outAck, uint32_t timeoutMs) {
+    const uint32_t startMs = millis();
+    while ((millis() - startMs) < timeoutMs) {
+        String line;
+        if (!readLine(line, 50)) {
+            continue;
+        }
+        if (tryParsePairAck(line, outAck)) {
+            return true;
+        }
+    }
+
+    _setError(ErrorCode::Timeout, "readPairAck: timed out waiting for PAIR001");
+    return false;
 }
 
 void LC29H_GNSS::printPairAck(Stream& out, const PairAck& ack, const char* label) {
@@ -2090,7 +2681,7 @@ bool LC29H_GNSS::_handleConsoleLine(const String& line) {
             return false;
         }
 
-        _console->println("Commands: help [command], status, restore, save, rover [rate], base, base_survey [sec] [std], base_fixed [lat] [lon] [alt], profile_uas [fixMs] [save0or1] [verify0or1], profile_base_survey [sec] [std] [rtcm0or1] [save0or1] [verify0or1], profile_base_static [lat] [lon] [alt] [rtcm0or1] [save0or1] [verify0or1], survey_capture [timeoutMs], survey_pos, survey_apply [save0or1], survey_finalize [timeoutMs] [save0or1], survey_status [tailCount], rover_status [tailCount], mode_query, msg_on <name> [port], msg_off <name> [port], msg_query <name> [port], baud <rate> [port], baud_query [port], fixrate <ms>, fixrate_query, hot, warm, cold, gnss_start, gnss_stop, uid, qver, rtcm on|off, send <payload>");
+        printHelpOverview(*_console);
         _console->println("Tip: use help <command> for details, e.g. help base_survey");
         return true;
     }
@@ -2559,6 +3150,11 @@ bool LC29H_GNSS::_handleConsoleLine(const String& line) {
 
     if (head == "qver") {
         return queryQVersion();
+    }
+
+    if (head == "families" || head == "groups") {
+        printCommandFamilySummary(*_console);
+        return true;
     }
 
     if (head == "send") {

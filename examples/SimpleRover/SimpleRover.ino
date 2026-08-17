@@ -78,6 +78,7 @@ void setup() {
     gnss.queryReceiverMode();
     gnss.queryFixRate();
     Serial.println("Rover profile ready. Type help for commands.");
+    Serial.println("Use help registry, help bridge, and help family coreconfiguration for the expanded command surface.");
 }
 
 void loop() {

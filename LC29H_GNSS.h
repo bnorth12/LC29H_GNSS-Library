@@ -96,6 +96,96 @@ public:
         RawBinary = 2
     };
 
+    enum class CommandFamily : uint8_t {
+        Identity,
+        Lifecycle,
+        CoreConfiguration,
+        SurveyAndBase,
+        OutputAndDiagnostics,
+        TransportBridge,
+        PairControl,
+        ConsoleAndUtility,
+        Generic
+    };
+
+    enum class CommandDirection : uint8_t {
+        Write,
+        Read,
+        ReadWrite,
+        Control
+    };
+
+    enum class CommandAckKind : uint8_t {
+        None,
+        PairAck,
+        CommandOkError,
+        StatusLine,
+        DirectData
+    };
+
+    enum class CommandFieldType : uint8_t {
+        Integer,
+        Unsigned,
+        Float,
+        Text,
+        Boolean,
+        Bitmask,
+        Enum,
+        Degrees,
+        Milliseconds,
+        Seconds,
+        Meters,
+        Port,
+        Rate,
+        Payload
+    };
+
+    struct CommandFieldSpec {
+        const char* name = nullptr;
+        CommandFieldType type = CommandFieldType::Text;
+        bool optional = false;
+        const char* units = nullptr;
+        const char* notes = nullptr;
+    };
+
+    struct CommandResponseSpec {
+        const char* prefix = nullptr;
+        CommandAckKind ackKind = CommandAckKind::None;
+        const char* notes = nullptr;
+    };
+
+    struct CommandMetadata {
+        const char* base = nullptr;
+        const char* wrapper = nullptr;
+        CommandFamily family = CommandFamily::Generic;
+        CommandDirection direction = CommandDirection::Write;
+        CommandAckKind ackKind = CommandAckKind::None;
+        const char* summary = nullptr;
+        const char* firmwareGate = nullptr;
+        const char* moduleGate = nullptr;
+        bool saveRecommended = false;
+        bool powerCycleRecommended = false;
+        bool genericFallback = true;
+        const CommandFieldSpec* requestFields = nullptr;
+        size_t requestFieldCount = 0;
+        const CommandResponseSpec* response = nullptr;
+        const CommandFieldSpec* responseFields = nullptr;
+        size_t responseFieldCount = 0;
+    };
+
+    struct CommandFamilyDefaults {
+        CommandFamily family = CommandFamily::Generic;
+        const char* familyName = nullptr;
+        const char* summary = nullptr;
+        CommandDirection defaultDirection = CommandDirection::Write;
+        CommandAckKind defaultAckKind = CommandAckKind::None;
+        const CommandFieldSpec* defaultRequestFields = nullptr;
+        size_t defaultRequestFieldCount = 0;
+        const CommandFieldSpec* defaultResponseFields = nullptr;
+        size_t defaultResponseFieldCount = 0;
+        bool genericFallback = true;
+    };
+
     struct PairAck {
         uint16_t commandId = 0;
         uint8_t result = 0;
@@ -174,6 +264,7 @@ public:
     bool queryVersion();
     bool queryQVersion();
     bool queryUniqueId();
+    bool querySerialNumber();
     bool restoreDefaults();
     bool resetToDefaults();
     bool saveConfig();
@@ -215,6 +306,8 @@ public:
     bool queryNmeaTalkerId();
     bool setProtocolMask(uint8_t inPort, uint8_t outPort, uint32_t inMask, uint32_t outMask);
     bool queryProtocolMask(uint8_t inPort, uint8_t outPort);
+    bool setPulsePerSecondConfig(const String& argsCsv);
+    bool queryPulsePerSecondConfig();
 
     bool setFixRateMs(uint32_t fixRateMs);
     bool queryFixRate();
@@ -292,9 +385,21 @@ public:
     static bool isNmeaAllowedByFilter(const String& line, const BridgeNmeaFilter& filter);
     static const char* bridgeModeName(BridgeMode mode);
     static const char* localDebugOutputModeName(LocalDebugOutputMode mode);
+    static const char* commandFamilyName(CommandFamily family);
+    static const char* commandDirectionName(CommandDirection direction);
+    static const char* commandAckKindName(CommandAckKind ackKind);
+    static const char* commandFieldTypeName(CommandFieldType type);
+    static CommandFamily inferCommandFamily(const String& commandOrPayload);
+    static const CommandFamilyDefaults* getCommandFamilyDefaults(CommandFamily family);
+    static CommandMetadata inferCommandMetadata(const String& commandOrPayload);
+    static const CommandMetadata* findCommandMetadata(const String& commandOrPayload);
+    static void printCommandMetadata(Stream& out, const String& commandOrPayload);
+    static void printCommandFamilyDefaults(Stream& out, CommandFamily family);
+    static void printCommandFamilySummary(Stream& out);
     static bool tryParsePairAck(const String& line, PairAck& outAck);
     static const char* pairAckResultName(uint8_t result);
     static void printPairAck(Stream& out, const PairAck& ack, const char* label = nullptr);
+    bool readPairAck(PairAck& outAck, uint32_t timeoutMs = 1500);
     static void printBridgeStatus(
         Stream& out,
         const char* label,

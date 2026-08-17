@@ -45,6 +45,7 @@ static void sendPayload(const char* payload) {
 static void printHelp() {
     Serial.println(F("ReducedCommandConsole commands:"));
     Serial.println(F("  help"));
+    Serial.println(F("  help registry | help bridge | help placeholders"));
     Serial.println(F("  status"));
     Serial.println(F("  rover [rateMs]"));
     Serial.println(F("  base"));
@@ -52,6 +53,7 @@ static void printHelp() {
     Serial.println(F("  hot | warm | cold"));
     Serial.println(F("  gnss_start | gnss_stop"));
     Serial.println(F("  send <payload>"));
+    Serial.println(F("  library help now includes registry, bridge, placeholders, and family summaries."));
 }
 
 static void handleCommand(char* line) {

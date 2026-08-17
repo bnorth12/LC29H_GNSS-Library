@@ -361,6 +361,17 @@ Benefits:
 
 Use these commands in the sketch Serial Monitor (newline-terminated input).
 
+The `help` command now works in two layers:
+
+- `help` prints grouped command families.
+- `help <command>` prints the syntax and purpose for that command.
+- `help families` or `help groups` prints the family taxonomy used by the library.
+- `help metadata <command>` prints the metadata schema for a command family or specific command.
+- `help family <name>` prints the default schema for a command family.
+- `help registry` prints the verified, provisional, and placeholder command inventory.
+- `help placeholders` prints the reserved V1.5 TODO slots and their policy.
+- `help bridge` prints the bridge-mode summary and NMEA allowlist defaults.
+
 Legend:
 
 - REQUIRED_ARG = required argument
@@ -373,6 +384,10 @@ General and setup:
   - Syntax: help or help COMMAND_NAME
   - Purpose: print command list or detailed help for one command.
   - Example: help base_survey
+- families
+  - Syntax: families
+  - Purpose: print the command-family summary used by the library.
+  - Example: families
 - status
   - Syntax: status
   - Purpose: run a quick health/query bundle (version, mode, survey status, baud query).
@@ -503,6 +518,40 @@ GNSS control and information:
 - qver
   - Syntax: qver
   - Purpose: query firmware/protocol version details.
+
+Family summary:
+
+- Identity: qver, uid
+- Identity extras: serial number query via `querySerialNumber()`
+- Lifecycle: restore, save, hot, warm, cold, gnss_start, gnss_stop
+- Core configuration: rover, base, base_survey, base_fixed, mode_query, msg_on, msg_off, msg_query, baud, baud_query, fixrate, fixrate_query, rtcm
+- Core configuration extras: PPS config via `setPulsePerSecondConfig()` and `queryPulsePerSecondConfig()`
+- Survey and base workflows: profile_uas, profile_base_survey, profile_base_static, survey_capture, survey_pos, survey_apply, survey_finalize
+- Output and diagnostics: status, survey_status, rover_status
+- Transport and bridge: send
+- Pair control: PAIR helpers plus `readPairAck()`
+
+## Command metadata schema
+
+The library now carries protocol metadata so the remaining command families can be added without inventing a new parsing shape for every wrapper.
+
+Metadata fields tracked per command:
+
+- base command
+- wrapper name
+- command family
+- direction: write, read, read/write, or control
+- ACK kind: none, pair ACK, command OK/error, status line, or direct data
+- summary
+- firmware or module gates
+- save recommended
+- power-cycle recommended
+- generic fallback allowed
+- request field specs
+- response field specs
+- response prefix and notes
+
+The practical rule is simple: one family defines the default schema, and individual commands override only the fields that differ.
 
 Raw send:
 

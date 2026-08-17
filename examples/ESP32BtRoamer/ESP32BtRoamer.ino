@@ -258,6 +258,7 @@ void setup() {
     Serial.println();
     Serial.println("ESP32BtRoamer example");
     Serial.println("Bluetooth correction ingress for phone-based RTIP/RTCM apps.");
+    Serial.println("Use help registry, help bridge, help placeholders, and help family coreconfiguration in the library console.");
 #if defined(LC29H_BT_ROAMER_USE_SPP)
     Serial.println("Transport mode: BT Classic SPP");
 #else

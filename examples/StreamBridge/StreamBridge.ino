@@ -82,6 +82,8 @@ void setup() {
     Serial.println(LC29H_GNSS::bridgeModeName(bridgeMode));
     Serial.print("Local debug output=");
     Serial.println(LC29H_GNSS::localDebugOutputModeName(debugMode));
+    Serial.println("Bridge allowlist defaults: GGA on, GST off, RMC off, PQTM off.");
+    Serial.println("Use help bridge and help registry in the library console for runtime guidance.");
     Serial.println(bridgeEnabled ? "Bridge active." : "Bridge startup failed.");
 }
 
