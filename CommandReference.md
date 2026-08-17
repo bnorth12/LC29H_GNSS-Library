@@ -23,7 +23,6 @@ The V1.5 protocol evaluation identified 108 unique command bases. This reference
 | Console and utility | Serial Monitor command processor and helper utilities | Implemented in the library and example sketches |
 | Generic | Remaining protocol commands not yet wrapped one-by-one | Still reachable through `sendPayload()`, `sendSentence()`, and `sendCommand()` |
 
-
 ## Metadata schema
 
 Each command family now has a common metadata shape so the rest of the protocol surface can be added with consistent fields.
@@ -48,6 +47,7 @@ Tracked fields:
 The family template defines the default shape and individual commands only override the fields that differ.
 
 Use `help family <name>` in the Serial Monitor to print the default schema for a family such as `identity`, `lifecycle`, `coreconfiguration`, `survey`, `output`, `bridge`, or `pair`.
+
 ## Observed from Temp/QGNSS files
 
 ### Identity

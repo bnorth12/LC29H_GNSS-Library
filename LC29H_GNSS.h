@@ -171,6 +171,40 @@ public:
         const CommandResponseSpec* response = nullptr;
         const CommandFieldSpec* responseFields = nullptr;
         size_t responseFieldCount = 0;
+
+        CommandMetadata() = default;
+        CommandMetadata(const char* baseIn,
+                const char* wrapperIn,
+                CommandFamily familyIn,
+                CommandDirection directionIn,
+                CommandAckKind ackKindIn,
+                const char* summaryIn,
+                const char* firmwareGateIn,
+                const char* moduleGateIn,
+                bool saveRecommendedIn,
+                bool powerCycleRecommendedIn,
+                bool genericFallbackIn,
+                const CommandFieldSpec* requestFieldsIn,
+                size_t requestFieldCountIn,
+                const CommandResponseSpec* responseIn,
+                const CommandFieldSpec* responseFieldsIn,
+                size_t responseFieldCountIn)
+            : base(baseIn),
+              wrapper(wrapperIn),
+              family(familyIn),
+              direction(directionIn),
+              ackKind(ackKindIn),
+              summary(summaryIn),
+              firmwareGate(firmwareGateIn),
+              moduleGate(moduleGateIn),
+              saveRecommended(saveRecommendedIn),
+              powerCycleRecommended(powerCycleRecommendedIn),
+              genericFallback(genericFallbackIn),
+              requestFields(requestFieldsIn),
+              requestFieldCount(requestFieldCountIn),
+              response(responseIn),
+              responseFields(responseFieldsIn),
+              responseFieldCount(responseFieldCountIn) {}
     };
 
     struct CommandFamilyDefaults {
@@ -181,9 +215,34 @@ public:
         CommandAckKind defaultAckKind = CommandAckKind::None;
         const CommandFieldSpec* defaultRequestFields = nullptr;
         size_t defaultRequestFieldCount = 0;
+        const CommandResponseSpec* defaultResponse = nullptr;
         const CommandFieldSpec* defaultResponseFields = nullptr;
         size_t defaultResponseFieldCount = 0;
         bool genericFallback = true;
+
+        CommandFamilyDefaults() = default;
+        CommandFamilyDefaults(CommandFamily familyIn,
+                      const char* familyNameIn,
+                      const char* summaryIn,
+                      CommandDirection defaultDirectionIn,
+                      CommandAckKind defaultAckKindIn,
+                      const CommandFieldSpec* defaultRequestFieldsIn,
+                      size_t defaultRequestFieldCountIn,
+                      const CommandResponseSpec* defaultResponseIn,
+                      const CommandFieldSpec* defaultResponseFieldsIn,
+                      size_t defaultResponseFieldCountIn,
+                      bool genericFallbackIn)
+            : family(familyIn),
+              familyName(familyNameIn),
+              summary(summaryIn),
+              defaultDirection(defaultDirectionIn),
+              defaultAckKind(defaultAckKindIn),
+              defaultRequestFields(defaultRequestFieldsIn),
+              defaultRequestFieldCount(defaultRequestFieldCountIn),
+              defaultResponse(defaultResponseIn),
+              defaultResponseFields(defaultResponseFieldsIn),
+              defaultResponseFieldCount(defaultResponseFieldCountIn),
+              genericFallback(genericFallbackIn) {}
     };
 
     struct PairAck {
