@@ -111,7 +111,9 @@ void setup() {
 }
 
 void loop() {
+#if !defined(ARDUINO_ARCH_AVR)
     gnss.processSerialCommands();
+#endif
 
     String line;
     if (gnss.readLine(line, 0)) {
