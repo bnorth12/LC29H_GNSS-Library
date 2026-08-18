@@ -480,12 +480,6 @@ LC29H_GNSS::LC29H_GNSS(Stream& gnssStream, Stream* debugStream)
                 const size_t bytes = static_cast<size_t>(sanitized.maxPoints) * sizeof(AccuracySample);
                 state.ring = static_cast<AccuracySample*>(malloc(bytes));
                 if (state.ring == nullptr) {
-        if (topic == "metadata") {
-            console->println("metadata <command>");
-            console->println("Print family, direction, ACK, and field metadata for a command.");
-            console->println("Example: help metadata PQTMCFGSVIN");
-            return true;
-        }
                     sanitized.enabled = false;
                     sanitized.maxPoints = 0;
                 } else {
@@ -2148,15 +2142,15 @@ const LC29H_GNSS::CommandResponseSpec kPairAckResponse = {"PAIR001", LC29H_GNSS:
 const LC29H_GNSS::CommandResponseSpec kStatusLineResponse = {nullptr, LC29H_GNSS::CommandAckKind::StatusLine, "Parsed status line or data response"};
 
 const LC29H_GNSS::CommandFamilyDefaults kFamilyDefaults[] = {
-    {LC29H_GNSS::CommandFamily::Identity, "Identity", "Identity and discovery commands", LC29H_GNSS::CommandDirection::Read, LC29H_GNSS::CommandAckKind::DirectData, kIdentityRequestFields, 0, &kStatusLineResponse, kEmptyFieldList, 0, true},
-    {LC29H_GNSS::CommandFamily::Lifecycle, "Lifecycle", "Restore/save and receiver lifecycle commands", LC29H_GNSS::CommandDirection::Control, LC29H_GNSS::CommandAckKind::CommandOkError, kEmptyFieldList, 0, &kStatusLineResponse, kEmptyFieldList, 0, true},
-    {LC29H_GNSS::CommandFamily::CoreConfiguration, "CoreConfiguration", "Receiver configuration commands", LC29H_GNSS::CommandDirection::ReadWrite, LC29H_GNSS::CommandAckKind::StatusLine, kConfigReadRequestFields, 0, &kStatusLineResponse, kEmptyFieldList, 0, true},
-    {LC29H_GNSS::CommandFamily::SurveyAndBase, "SurveyAndBase", "Survey-in and fixed-base workflows", LC29H_GNSS::CommandDirection::ReadWrite, LC29H_GNSS::CommandAckKind::StatusLine, kBaseSurveyRequestFields, 0, &kStatusLineResponse, kEmptyFieldList, 0, true},
-    {LC29H_GNSS::CommandFamily::OutputAndDiagnostics, "OutputAndDiagnostics", "Status and diagnostic queries", LC29H_GNSS::CommandDirection::Read, LC29H_GNSS::CommandAckKind::DirectData, kEmptyFieldList, 0, &kStatusLineResponse, kEmptyFieldList, 0, true},
-    {LC29H_GNSS::CommandFamily::TransportBridge, "TransportBridge", "Raw byte and bridge helpers", LC29H_GNSS::CommandDirection::Control, LC29H_GNSS::CommandAckKind::None, kEmptyFieldList, 0, nullptr, kEmptyFieldList, 0, true},
-    {LC29H_GNSS::CommandFamily::PairControl, "PairControl", "PAIR command and ACK helpers", LC29H_GNSS::CommandDirection::Control, LC29H_GNSS::CommandAckKind::PairAck, kPairWriteFields, 0, &kPairAckResponse, kEmptyFieldList, 0, true},
-    {LC29H_GNSS::CommandFamily::ConsoleAndUtility, "ConsoleAndUtility", "Console and helper commands", LC29H_GNSS::CommandDirection::Control, LC29H_GNSS::CommandAckKind::None, kEmptyFieldList, 0, nullptr, kEmptyFieldList, 0, true},
-    {LC29H_GNSS::CommandFamily::Generic, "Generic", "Generic fallback commands", LC29H_GNSS::CommandDirection::Write, LC29H_GNSS::CommandAckKind::None, kEmptyFieldList, 0, nullptr, kEmptyFieldList, 0, true}
+    {LC29H_GNSS::CommandFamily::Identity, "Identity", "Identity and discovery commands", LC29H_GNSS::CommandDirection::Read, LC29H_GNSS::CommandAckKind::DirectData, kIdentityRequestFields, 0, kEmptyFieldList, 0, true},
+    {LC29H_GNSS::CommandFamily::Lifecycle, "Lifecycle", "Restore/save and receiver lifecycle commands", LC29H_GNSS::CommandDirection::Control, LC29H_GNSS::CommandAckKind::CommandOkError, kEmptyFieldList, 0, kEmptyFieldList, 0, true},
+    {LC29H_GNSS::CommandFamily::CoreConfiguration, "CoreConfiguration", "Receiver configuration commands", LC29H_GNSS::CommandDirection::ReadWrite, LC29H_GNSS::CommandAckKind::StatusLine, kConfigReadRequestFields, 0, kEmptyFieldList, 0, true},
+    {LC29H_GNSS::CommandFamily::SurveyAndBase, "SurveyAndBase", "Survey-in and fixed-base workflows", LC29H_GNSS::CommandDirection::ReadWrite, LC29H_GNSS::CommandAckKind::StatusLine, kBaseSurveyRequestFields, 0, kEmptyFieldList, 0, true},
+    {LC29H_GNSS::CommandFamily::OutputAndDiagnostics, "OutputAndDiagnostics", "Status and diagnostic queries", LC29H_GNSS::CommandDirection::Read, LC29H_GNSS::CommandAckKind::DirectData, kEmptyFieldList, 0, kEmptyFieldList, 0, true},
+    {LC29H_GNSS::CommandFamily::TransportBridge, "TransportBridge", "Raw byte and bridge helpers", LC29H_GNSS::CommandDirection::Control, LC29H_GNSS::CommandAckKind::None, kEmptyFieldList, 0, kEmptyFieldList, 0, true},
+    {LC29H_GNSS::CommandFamily::PairControl, "PairControl", "PAIR command and ACK helpers", LC29H_GNSS::CommandDirection::Control, LC29H_GNSS::CommandAckKind::PairAck, kPairWriteFields, 0, kEmptyFieldList, 0, true},
+    {LC29H_GNSS::CommandFamily::ConsoleAndUtility, "ConsoleAndUtility", "Console and helper commands", LC29H_GNSS::CommandDirection::Control, LC29H_GNSS::CommandAckKind::None, kEmptyFieldList, 0, kEmptyFieldList, 0, true},
+    {LC29H_GNSS::CommandFamily::Generic, "Generic", "Generic fallback commands", LC29H_GNSS::CommandDirection::Write, LC29H_GNSS::CommandAckKind::None, kEmptyFieldList, 0, kEmptyFieldList, 0, true}
 };
 
 const LC29H_GNSS::CommandMetadata kKnownMetadata[] = {
@@ -2269,7 +2263,6 @@ LC29H_GNSS::CommandMetadata LC29H_GNSS::inferCommandMetadata(const String& comma
         metadata.ackKind = defaults->defaultAckKind;
         metadata.requestFields = defaults->defaultRequestFields;
         metadata.requestFieldCount = defaults->defaultRequestFieldCount;
-        metadata.response = defaults->defaultResponse;
         metadata.responseFields = defaults->defaultResponseFields;
         metadata.responseFieldCount = defaults->defaultResponseFieldCount;
         metadata.genericFallback = defaults->genericFallback;

@@ -146,12 +146,32 @@ public:
         bool optional = false;
         const char* units = nullptr;
         const char* notes = nullptr;
+
+                CommandFieldSpec() = default;
+                CommandFieldSpec(const char* nameIn,
+                                                 CommandFieldType typeIn,
+                                                 bool optionalIn,
+                                                 const char* unitsIn,
+                                                 const char* notesIn)
+                        : name(nameIn),
+                            type(typeIn),
+                            optional(optionalIn),
+                            units(unitsIn),
+                            notes(notesIn) {}
     };
 
     struct CommandResponseSpec {
         const char* prefix = nullptr;
         CommandAckKind ackKind = CommandAckKind::None;
         const char* notes = nullptr;
+
+                CommandResponseSpec() = default;
+                CommandResponseSpec(const char* prefixIn,
+                                                        CommandAckKind ackKindIn,
+                                                        const char* notesIn)
+                        : prefix(prefixIn),
+                            ackKind(ackKindIn),
+                            notes(notesIn) {}
     };
 
     struct CommandMetadata {
@@ -215,7 +235,6 @@ public:
         CommandAckKind defaultAckKind = CommandAckKind::None;
         const CommandFieldSpec* defaultRequestFields = nullptr;
         size_t defaultRequestFieldCount = 0;
-        const CommandResponseSpec* defaultResponse = nullptr;
         const CommandFieldSpec* defaultResponseFields = nullptr;
         size_t defaultResponseFieldCount = 0;
         bool genericFallback = true;
@@ -228,7 +247,6 @@ public:
                       CommandAckKind defaultAckKindIn,
                       const CommandFieldSpec* defaultRequestFieldsIn,
                       size_t defaultRequestFieldCountIn,
-                      const CommandResponseSpec* defaultResponseIn,
                       const CommandFieldSpec* defaultResponseFieldsIn,
                       size_t defaultResponseFieldCountIn,
                       bool genericFallbackIn)
@@ -239,7 +257,6 @@ public:
               defaultAckKind(defaultAckKindIn),
               defaultRequestFields(defaultRequestFieldsIn),
               defaultRequestFieldCount(defaultRequestFieldCountIn),
-              defaultResponse(defaultResponseIn),
               defaultResponseFields(defaultResponseFieldsIn),
               defaultResponseFieldCount(defaultResponseFieldCountIn),
               genericFallback(genericFallbackIn) {}
