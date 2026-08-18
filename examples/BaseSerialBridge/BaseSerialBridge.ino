@@ -90,7 +90,7 @@ void setup() {
 }
 
 void loop() {
-#if !defined(ARDUINO_ARCH_AVR)
+#if !defined(ARDUINO_AVR_MEGA2560)
     gnss.processSerialCommands();
 #endif
 
