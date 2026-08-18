@@ -271,7 +271,13 @@ Verified with:
 
 Repository release:
 
-- v0.1.1
+- v0.2.1
+
+Fixes in v0.2.1:
+
+1. Removed a stray block accidentally inserted into the accuracy-tracker configuration path.
+2. Corrected command-family metadata defaults so field arrays and response metadata use the proper internal types.
+3. Reduced SRAM usage for the full-size AVR Mega examples by disabling the interactive command loop on Mega targets only.
 
 Results:
 
