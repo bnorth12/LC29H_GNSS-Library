@@ -17,7 +17,7 @@ Initial library skeleton is now implemented with:
 - Rover output/fix rate helper: PQTMCFGFIXRATE,W/R
 - Receiver mode query: PQTMCFGRCVRMODE,R
 - Survey-In helper
-- Message output control and query: PQTMCFGMSGRATE,W/R
+- Message output control and query: PQTMCFGMSGRATE,W/R (writes use message name and rate)
 - Parsed message-rate queries for app logic: getMessageRate(...)
 - UART baud rate set/query: PQTMCFGUART,W/R
 - Parsed baud query: getBaudRate(...)

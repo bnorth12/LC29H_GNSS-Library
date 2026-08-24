@@ -109,10 +109,10 @@ Use `help family <name>` in the Serial Monitor to print the default schema for a
 - PQTMCFGSVIN,R
   - Purpose: Read Survey-In config/status.
 
-- PQTMCFGMSGRATE,W,MESSAGE_NAME,PORT,RATE
-  - Purpose: Configure message output rate.
+- PQTMCFGMSGRATE,W,MESSAGE_NAME,RATE
+  - Purpose: Configure message output rate on the receiver's configured output port.
   - Observed example:
-    - $PQTMCFGMSGRATE,W,PQTMSVINSTATUS,1,1*58
+    - $PQTMCFGMSGRATE,W,PQTMSVINSTATUS,1*58
 
 - PQTMCFGFIXRATE,W,MS
   - Purpose: Configure rover/fix output interval.

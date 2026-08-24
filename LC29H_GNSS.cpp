@@ -960,12 +960,14 @@ bool LC29H_GNSS::queryReceiverMode() {
 }
 
 bool LC29H_GNSS::setMessageRate(const String& messageName, uint8_t port, uint8_t rate) {
+    // LC29H firmware accepts message name and output rate only for writes. Keep port for API
+    // compatibility because the receiver targets its configured UART output port.
     String payload = "PQTMCFGMSGRATE,W,";
     payload += messageName;
     payload += ",";
-    payload += String(port);
-    payload += ",";
     payload += String(rate);
+
+    (void)port;
 
     return sendPayload(payload);
 }
