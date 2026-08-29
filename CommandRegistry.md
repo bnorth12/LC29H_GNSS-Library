@@ -79,8 +79,15 @@ Status key:
 | PAIR006 | known | generic send helper | PairControl | Control | PairAck | Tool-config family member |
 | PAIR007 | known | generic send helper | PairControl | Control | PairAck | Tool-config family member |
 | PAIR023 | known | `rebootModule()` | PairControl | Control | PairAck | Full module reboot; required after SAVEPAR for DA survey-in |
+| PAIR062 | known | `setPairNmeaOutputRate()` | PairControl | Write | PairAck | NMEA family rate; Type 3=GSV all talkers; DA Type 0–5 only |
+| PAIR063 | known | `queryPairNmeaOutputRate()` | PairControl | Read | PairAck | Get NMEA family rate |
 | PAIR432 | known | `enableRTCM(true/false)` | PairControl | Control | PairAck | RTCM enable control |
+| PAIR433 | known | `queryRtcmOutputMode()` | PairControl | Read | PairAck | Get MSM4/MSM7/-1 |
 | PAIR434 | known | `enableRTCM(true/false)` | PairControl | Control | PairAck | RTCM enable control |
+| PAIR435 | known | `queryRtcmAntennaPoint()` | PairControl | Read | PairAck | Get RTCM 1005 enable |
+| PAIR437 | known | `queryRtcmEphemerisOutput()` | PairControl | Read | PairAck | Get RTCM eph enable |
+| PAIR864 | known | `setBaudRatePair()` | PairControl | Write | PairAck | DA/EA UART baud (v1.5: PQTMCFGUART is AA/AL); reboot to apply |
+| PAIR865 | known | `queryBaudRatePair()` | PairControl | Read | PairAck | Get UART baud via PAIR |
 
 ## Transport and Bridge
 

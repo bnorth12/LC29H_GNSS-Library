@@ -1211,6 +1211,42 @@ bool LC29H_GNSS::queryBaudRate(uint8_t uartPort) {
     return sendPayload(payload);
 }
 
+bool LC29H_GNSS::setBaudRatePair(uint32_t baudRate) {
+    String payload = "PAIR864,0,0,";
+    payload += String(baudRate);
+    return sendPayload(payload);
+}
+
+bool LC29H_GNSS::queryBaudRatePair() {
+    return sendPayload("PAIR865,0,0");
+}
+
+bool LC29H_GNSS::setPairNmeaOutputRate(int8_t type, uint8_t rate) {
+    String payload = "PAIR062,";
+    payload += String(type);
+    payload += ",";
+    payload += String(rate);
+    return sendPayload(payload);
+}
+
+bool LC29H_GNSS::queryPairNmeaOutputRate(int8_t type) {
+    String payload = "PAIR063,";
+    payload += String(type);
+    return sendPayload(payload);
+}
+
+bool LC29H_GNSS::queryRtcmOutputMode() {
+    return sendPayload("PAIR433");
+}
+
+bool LC29H_GNSS::queryRtcmAntennaPoint() {
+    return sendPayload("PAIR435");
+}
+
+bool LC29H_GNSS::queryRtcmEphemerisOutput() {
+    return sendPayload("PAIR437");
+}
+
 bool LC29H_GNSS::startGnss() {
     return sendPayload("PQTMGNSSSTART");
 }

@@ -430,6 +430,21 @@ public:
 
     bool setBaudRate(uint32_t baudRate, uint8_t uartPort = 1);
     bool queryBaudRate(uint8_t uartPort = 1);
+    // PAIR864/865. Protocol v1.5 lists PQTMCFGUART as AA/AL-only; DA/EA baud is PAIR
+    // (reboot required for the new rate to apply).
+    bool setBaudRatePair(uint32_t baudRate);
+    bool queryBaudRatePair();
+
+    // PAIR062/063. Type -1 = reset all; 0 GGA, 1 GLL, 2 GSA, 3 GSV, 4 RMC, 5 VTG.
+    // DA/EA only allow Type 0–5 (not ZDA/GRS/GST/GNS). Rate 0 = off, 1–20 = every N fixes.
+    // GSV is still one family (all talkers). Prefer setMessageRate (PQTMCFGMSGRATE) for GST/SVIN/EPE.
+    bool setPairNmeaOutputRate(int8_t type, uint8_t rate);
+    bool queryPairNmeaOutputRate(int8_t type);
+
+    // PAIR433/435/437 — query RTCM MSM mode / 1005 / ephemeris without changing output.
+    bool queryRtcmOutputMode();
+    bool queryRtcmAntennaPoint();
+    bool queryRtcmEphemerisOutput();
 
     bool startGnss();
     bool stopGnss();
