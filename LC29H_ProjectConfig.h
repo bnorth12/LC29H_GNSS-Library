@@ -1,13 +1,15 @@
 #pragma once
 
 #include <LC29H_GNSS.h>
+#include <LC29H_MessageSchedule.h>
 
 // Project-level configuration loader.
 //
 // Expected user workflow:
 // 1) Copy lc29hconfig.h.template into sketch folder as lc29hconfig.h
 // 2) Set role and values
-// 3) Call LC29H_applyProjectConfig(...) in setup()
+// 3) Call LC29H_bringUp(...) in setup() (adopt live SVIN, message rates, PAIR023)
+//    or LC29H_applyProjectConfig(...) if you want the profile only.
 //
 // __has_include keeps this optional. If the file is absent, callers can
 // choose whether to stop or fall back to manual/demo setup paths.
@@ -251,5 +253,109 @@ inline bool LC29H_applyProjectConfig(LC29H_GNSS& gnss, LC29H_GNSS::ProfileResult
     outResult = {LC29H_GNSS::ProfileStatus::CommandFailed, false};
     (void)gnss;
     return false;
+#endif
+}
+
+#ifndef LC29H_CFG_REBOOT_SETTLE_MS
+#define LC29H_CFG_REBOOT_SETTLE_MS 3000
+#endif
+
+#ifndef LC29H_CFG_ESP32_RX_BUFFER_SIZE
+#define LC29H_CFG_ESP32_RX_BUFFER_SIZE 1024
+#endif
+
+struct LC29H_BringUpResult {
+    LC29H_GNSS::ProfileResult profile{LC29H_GNSS::ProfileStatus::CommandFailed, false};
+    bool adoptedLiveSurveyIn = false;
+};
+
+#if defined(ARDUINO_ARCH_ESP32)
+inline void LC29H_beginEsp32GnssUart(HardwareSerial& port, uint32_t baud, int rxPin, int txPin) {
+    port.setRxBufferSize(LC29H_CFG_ESP32_RX_BUFFER_SIZE);
+    port.begin(baud, SERIAL_8N1, rxPin, txPin);
+}
+#endif
+
+inline bool LC29H_accLimitMatches(float actualM, float desiredM) {
+    const float delta = actualM - desiredM;
+    return delta > -0.15f && delta < 0.15f;
+}
+
+inline void LC29H_rebootIfNeeded(LC29H_GNSS& gnss, bool recommended, Stream* log) {
+    if (!recommended) {
+        return;
+    }
+    if (log != nullptr) {
+        log->println("Rebooting module (PAIR023). PAIR003/PAIR002 sleep is not enough.");
+    }
+    gnss.rebootModule();
+    delay(LC29H_CFG_REBOOT_SETTLE_MS);
+}
+
+// Role bring-up used by the examples:
+// - Base survey: adopt a matching in-progress SVIN (no CFGSVIN/PAIR023).
+//   Otherwise apply the survey profile, status NMEA schedule, SAVEPAR, PAIR023.
+// - Rover: rover profile, GIS NMEA (GGA/RMC every epoch), SAVEPAR, PAIR023 if needed.
+// - Static base: static profile, base status NMEA schedule, SAVEPAR, PAIR023 if needed.
+inline bool LC29H_bringUp(LC29H_GNSS& gnss, LC29H_BringUpResult& out, Stream* log = nullptr) {
+    out = LC29H_BringUpResult{};
+
+#if !LC29H_PROJECT_CONFIG_AVAILABLE
+    (void)gnss;
+    (void)log;
+    return false;
+#elif (LC29H_ROLE == LC29H_ROLE_BASE_SURVEY)
+    gnss.setSurveyAccuracyTrackerConfig(LC29H_projectSurveyAccuracyTrackerConfig());
+    gnss.setRoverAccuracyTrackerConfig(LC29H_GNSS::AccuracyTrackerConfig{});
+
+    LC29H_GNSS::SurveyInConfig cfg;
+    if (gnss.getSurveyInConfig(cfg) &&
+        cfg.mode == 1 &&
+        cfg.minDur == static_cast<uint32_t>(LC29H_CFG_SURVEY_MIN_TIME_SEC) &&
+        LC29H_accLimitMatches(cfg.accLimitM, LC29H_CFG_SURVEY_MIN_STDDEV_M)) {
+        out.adoptedLiveSurveyIn = true;
+        out.profile.status = LC29H_GNSS::ProfileStatus::Success;
+        out.profile.powerCycleRecommended = false;
+        if (log != nullptr) {
+            log->print("Adopting live survey-in MinDur=");
+            log->print(cfg.minDur);
+            log->println(" (skipping CFGSVIN/PAIR023 so Obs is not reset).");
+        }
+        LC29H_MessageSchedule::applyBaseStatusRates(gnss);
+        gnss.saveConfig();
+        return true;
+    }
+
+    if (!LC29H_applyProjectConfig(gnss, out.profile) ||
+        out.profile.status != LC29H_GNSS::ProfileStatus::Success) {
+        return false;
+    }
+    LC29H_MessageSchedule::applyBaseStatusRates(gnss);
+    gnss.saveConfig();
+    LC29H_rebootIfNeeded(gnss, out.profile.powerCycleRecommended, log);
+    return true;
+
+#elif (LC29H_ROLE == LC29H_ROLE_UAS_ROVER)
+    if (!LC29H_applyProjectConfig(gnss, out.profile) ||
+        out.profile.status != LC29H_GNSS::ProfileStatus::Success) {
+        return false;
+    }
+    LC29H_MessageSchedule::applyRoverGisRates(gnss, LC29H_CFG_FIX_RATE_MS);
+    gnss.saveConfig();
+    LC29H_rebootIfNeeded(gnss, out.profile.powerCycleRecommended, log);
+    return true;
+
+#elif (LC29H_ROLE == LC29H_ROLE_BASE_STATIC)
+    if (!LC29H_applyProjectConfig(gnss, out.profile) ||
+        out.profile.status != LC29H_GNSS::ProfileStatus::Success) {
+        return false;
+    }
+    LC29H_MessageSchedule::applyBaseStatusRates(gnss);
+    gnss.saveConfig();
+    LC29H_rebootIfNeeded(gnss, out.profile.powerCycleRecommended, log);
+    return true;
+
+#else
+#error "Unsupported LC29H_ROLE in lc29hconfig.h"
 #endif
 }

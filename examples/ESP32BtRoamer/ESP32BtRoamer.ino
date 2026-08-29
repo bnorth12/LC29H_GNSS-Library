@@ -2,6 +2,10 @@
 #include <LC29H_ProjectConfig.h>
 #include <string.h>
 
+// Phone-app rover: ingest RTCM/RTIP over Bluetooth, publish GGA (position)
+// and RMC (time) back to the app for GIS. Loop: corrections first, then NMEA.
+// SPP on classic ESP32, BLE NUS on ESP32-S3.
+//
 // Minimum verified hardware:
 // - ESP32 with Bluetooth support (SPP preferred, BLE fallback)
 // - GNSS module connected to configured UART pins
@@ -197,7 +201,7 @@ void setup() {
     Serial.begin(kConsoleBaud);
     delay(250);
 
-    gnssPort.begin(kGnssBaud, SERIAL_8N1, kGnssRxPin, kGnssTxPin);
+    LC29H_beginEsp32GnssUart(gnssPort, kGnssBaud, kGnssRxPin, kGnssTxPin);
 
 #if defined(LC29H_BT_ROAMER_USE_SPP)
     const char* btPin = LC29H_CFG_ESP32_BT_PIN;
@@ -257,8 +261,7 @@ void setup() {
 
     Serial.println();
     Serial.println("ESP32BtRoamer example");
-    Serial.println("Bluetooth correction ingress for phone-based RTIP/RTCM apps.");
-    Serial.println("After SAVEPAR, PAIR023 reboots the module. Drain GNSS UART every loop.");
+    Serial.println("Mission: RTCM/RTIP in from the phone, GGA+RMC out for GIS.");
     Serial.println("Use help registry, help bridge, help placeholders, and help family coreconfiguration in the library console.");
 #if defined(LC29H_BT_ROAMER_USE_SPP)
     Serial.println("Transport mode: BT Classic SPP");
@@ -277,25 +280,13 @@ void setup() {
         return;
     }
 
-    LC29H_GNSS::ProfileResult profileResult{
-        LC29H_GNSS::ProfileStatus::CommandFailed,
-        false,
-    };
-    roverEnabled = LC29H_applyProjectConfig(gnss, profileResult) &&
-        profileResult.status == LC29H_GNSS::ProfileStatus::Success;
-
-    Serial.print("Project config status=");
-    Serial.println(profileStatusName(profileResult.status));
-
+    LC29H_BringUpResult bringUp;
+    roverEnabled = LC29H_bringUp(gnss, bringUp, &Serial);
+    Serial.print("Bring-up status=");
+    Serial.println(profileStatusName(bringUp.profile.status));
     if (!roverEnabled) {
         Serial.println("Rover setup failed.");
         return;
-    }
-
-    if (profileResult.powerCycleRecommended) {
-        Serial.println("Rebooting module (PAIR023). PAIR003/PAIR002 sleep is not enough.");
-        gnss.rebootModule();
-        delay(3000);
     }
 
     gnss.queryVersion();
@@ -312,6 +303,7 @@ void loop() {
         return;
     }
 
+    // Corrections first so GIS NMEA printing cannot starve RTCM ingress.
 #if defined(LC29H_BT_ROAMER_USE_SPP)
     gnss.ingestRawAvailable(
         btSerial,

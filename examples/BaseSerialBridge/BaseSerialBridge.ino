@@ -1,8 +1,9 @@
 #include <LC29H_GNSS.h>
 #include <LC29H_ProjectConfig.h>
 
-// Bench base: GNSS UART parsed and RTCM forwarded to a rover link UART.
-// AccLimit 15 m, GSV/SVIN RATE 10, SAVEPAR + PAIR023. Pump every loop; one reader.
+// Bench base pair: parse GNSS UART and forward RTCM to a rover on a second UART.
+// LC29H_bringUp() adopts a matching live SVIN or starts survey-in. RTCM stays 1 Hz.
+// Pump every loop; do not parse inside the pump callback.
 //
 // Minimum verified hardware:
 // - Arduino Mega 2560 class (AVR Uno/Nano class boards run out of RAM)
@@ -17,7 +18,6 @@ constexpr uint32_t kConsoleBaud = 115200;
 constexpr uint32_t kGnssBaud = 115200;
 constexpr uint32_t kLinkBaud = 115200;
 constexpr uint32_t kStatusIntervalMs = 1000;
-constexpr uint32_t kRebootSettleMs = 3000;
 
 #if defined(ARDUINO_ARCH_ESP32)
 constexpr int kGnssRxPin = 16;
@@ -44,11 +44,6 @@ LC29H_GNSS::LocalDebugOutputMode debugMode = LC29H_GNSS::LocalDebugOutputMode::N
 bool bridgeFilterEnabled = true;
 bool bridgeEnabled = false;
 uint32_t lastStatusMs = 0;
-
-void applyStatusMessageRates() {
-    gnss.setMessageRate("GSV", 1, 10);
-    gnss.setMessageRate("PQTMSVINSTATUS", 1, 10);
-}
 }
 
 void setup() {
@@ -56,7 +51,7 @@ void setup() {
     delay(250);
 
 #if defined(ARDUINO_ARCH_ESP32)
-    gnssPort.begin(kGnssBaud, SERIAL_8N1, kGnssRxPin, kGnssTxPin);
+    LC29H_beginEsp32GnssUart(gnssPort, kGnssBaud, kGnssRxPin, kGnssTxPin);
     roverLinkPort.begin(kLinkBaud, SERIAL_8N1, kLinkRxPin, kLinkTxPin);
 #else
     gnssPort.begin(kGnssBaud);
@@ -70,7 +65,7 @@ void setup() {
     Serial.println();
     Serial.println("BaseSerialBridge example");
     Serial.println("For bench use: GNSS output is forwarded to the rover link UART.");
-    Serial.println("AccLimit 15 m, GSV/SVIN RATE 10, SAVEPAR + PAIR023. RTCM stays 1 Hz.");
+    Serial.println("RTCM 1 Hz mission. Adopt live SVIN if MinDur matches. Status NMEA scheduled.");
     Serial.println("Bridge allowlist defaults: GGA on, GST off, RMC off, PQTM off.");
     Serial.println("Use help bridge and help registry in the library console for runtime guidance.");
 
@@ -79,22 +74,8 @@ void setup() {
         return;
     }
 
-    LC29H_GNSS::ProfileResult profileResult{
-        LC29H_GNSS::ProfileStatus::CommandFailed,
-        false,
-    };
-    bridgeEnabled = LC29H_applyProjectConfig(gnss, profileResult) &&
-        profileResult.status == LC29H_GNSS::ProfileStatus::Success;
-
-    if (bridgeEnabled) {
-        applyStatusMessageRates();
-        gnss.saveConfig();
-        if (profileResult.powerCycleRecommended) {
-            Serial.println("Rebooting module (PAIR023). PAIR003/PAIR002 sleep is not enough.");
-            gnss.rebootModule();
-            delay(kRebootSettleMs);
-        }
-    }
+    LC29H_BringUpResult bringUp;
+    bridgeEnabled = LC29H_bringUp(gnss, bringUp, &Serial);
 
     bridgeMode = LC29H_projectBridgeMode();
     bridgeFilter = LC29H_projectBridgeNmeaFilter();

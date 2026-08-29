@@ -1,6 +1,10 @@
 #include <LC29H_GNSS.h>
 #include <LC29H_ProjectConfig.h>
 
+// Bench rover: ingest RTCM from the link UART, write it to GNSS, publish GGA
+// (position) and RMC (time) for GIS. GST ~1 Hz, GSV every 10 s.
+// Loop order: corrections first, then NMEA. Do not starve RTCM ingress.
+//
 // Minimum verified hardware:
 // - Arduino Mega 2560 class (AVR Uno/Nano class boards run out of RAM)
 // - ESP32 class boards are also supported via their dedicated paths
@@ -65,7 +69,7 @@ void setup() {
     delay(250);
 
 #if defined(ARDUINO_ARCH_ESP32)
-    gnssPort.begin(kGnssBaud, SERIAL_8N1, kGnssRxPin, kGnssTxPin);
+    LC29H_beginEsp32GnssUart(gnssPort, kGnssBaud, kGnssRxPin, kGnssTxPin);
     correctionLinkPort.begin(kLinkBaud, SERIAL_8N1, kLinkRxPin, kLinkTxPin);
 #else
     gnssPort.begin(kGnssBaud);
@@ -78,12 +82,12 @@ void setup() {
 
     Serial.println();
     Serial.println("RoverCorrectionBridge example");
-    Serial.println("Ingest RTCM from the link UART and write it raw to GNSS. Drain GNSS every loop.");
+    Serial.println("Mission: RTCM in first, then GGA+RMC out for GIS.");
     Serial.print("Local NMEA print=");
     Serial.println(kPrintLocalNmea ? "on" : "off");
     Serial.print("Forward NMEA to link=");
     Serial.println(kForwardNmeaToLink ? "on" : "off");
-    Serial.println("Bridge allowlist defaults: GGA on, GST off, RMC off, PQTM off.");
+    Serial.println("Allowlist: GGA and RMC on (position and time).");
     Serial.println("Use help bridge and help registry in the library console for runtime guidance.");
 
     if (!LC29H_projectConfigAvailable()) {
@@ -91,18 +95,8 @@ void setup() {
         return;
     }
 
-    LC29H_GNSS::ProfileResult profileResult{
-        LC29H_GNSS::ProfileStatus::CommandFailed,
-        false,
-    };
-    roverEnabled = LC29H_applyProjectConfig(gnss, profileResult) &&
-        profileResult.status == LC29H_GNSS::ProfileStatus::Success;
-
-    if (roverEnabled && profileResult.powerCycleRecommended) {
-        Serial.println("Rebooting module (PAIR023). PAIR003/PAIR002 sleep is not enough.");
-        gnss.rebootModule();
-        delay(3000);
-    }
+    LC29H_BringUpResult bringUp;
+    roverEnabled = LC29H_bringUp(gnss, bringUp, &Serial);
 
     bridgeMode = LC29H_projectBridgeMode();
     bridgeFilter = LC29H_projectBridgeNmeaFilter();

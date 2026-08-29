@@ -1,6 +1,10 @@
 #include <LC29H_GNSS.h>
 #include <LC29H_ProjectConfig.h>
 
+// Dual USB-C bring-up: native USB is the Arduino console, CH340 Serial0 is a
+// raw GNSS UART for QGNSS. One host at a time. Auto-apply is off by default so
+// QGNSS owns module config. Loop: host bytes into GNSS, GNSS bytes out to host.
+//
 // Minimum verified hardware:
 // - ESP32-S3 target (compiled with esp32:esp32:esp32s3)
 // - Designed for dual USB-C ESP32-S3 dev boards (native USB + CH340 USB-UART)
@@ -96,7 +100,7 @@ void setup() {
     Serial.begin(kConsoleBaud);
     delay(250);
 
-    gnssPort.begin(kGnssBaud, SERIAL_8N1, kGnssRxPin, kGnssTxPin);
+    LC29H_beginEsp32GnssUart(gnssPort, kGnssBaud, kGnssRxPin, kGnssTxPin);
     usbUartPort.begin(kUsbUartBaud);
 
     gnss.attachConsole(Serial);
@@ -130,23 +134,14 @@ void setup() {
     }
 
 #if LC29H_CFG_ESP32_USB_UART_BRIDGE_APPLY_PROJECT_CONFIG
-    LC29H_GNSS::ProfileResult profileResult{
-        LC29H_GNSS::ProfileStatus::CommandFailed,
-        false,
-    };
-    LC29H_applyProjectConfig(gnss, profileResult);
-    Serial.print("Project config status=");
-    Serial.println(profileStatusName(profileResult.status));
-    if (profileResult.status != LC29H_GNSS::ProfileStatus::Success) {
+    LC29H_BringUpResult bringUp;
+    if (!LC29H_bringUp(gnss, bringUp, &Serial)) {
+        Serial.print("Bring-up failed, status=");
+        Serial.println(profileStatusName(bringUp.profile.status));
         return;
     }
-    if (profileResult.powerCycleRecommended) {
-        Serial.println("Rebooting module (PAIR023). PAIR003/PAIR002 sleep is not enough.");
-        gnss.rebootModule();
-        delay(3000);
-    }
 #else
-    Serial.println("Project config loaded; auto-apply is disabled in lc29hconfig.h for bridge-first bring-up.");
+    Serial.println("Auto-apply is off so QGNSS can own module config. Enable APPLY_PROJECT_CONFIG to run LC29H_bringUp.");
 #endif
 
 #if LC29H_CFG_ESP32_USB_UART_BRIDGE_STARTUP_SANITY_CHECKS

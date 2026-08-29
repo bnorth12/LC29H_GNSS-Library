@@ -56,6 +56,25 @@ public:
         bool valid;
     };
 
+    // Parsed PQTMCFGSVIN,OK,<Mode>,<MinDur>,<3D_AccLimit>,X,Y,Z
+    // Mode 1 = survey-in, 2 = fixed ECEF. AccLimit is meters.
+    struct SurveyInConfig {
+        uint8_t mode = 0;
+        uint32_t minDur = 0;
+        float accLimitM = 0.0f;
+        EcefPosition ecef{0.0, 0.0, 0.0, false};
+    };
+
+    // Parsed $PQTMSVINSTATUS. Valid 0=idle, 1=in-progress, 2=complete.
+    // MeanAcc 0.0000 is a placeholder until Obs > 0; it is not "done".
+    struct SvinStatus {
+        uint8_t validCode = 0;
+        uint32_t obs = 0;
+        uint32_t cfgDur = 0;
+        float meanAccM = 0.0f;
+        bool present = false;
+    };
+
     // Result for preset helpers that optionally call saveConfig().
     enum class PresetResult {
         Success,
@@ -367,6 +386,10 @@ public:
     // (PAIR023). PAIR003/PAIR002 GNSS sleep is not enough on DA.
     bool configureBaseSurveyIn(uint32_t minTimeSec = 300, float minStdDevM = 15.0f);
     bool querySurveyIn();
+    // Reads PQTMCFGSVIN,R into mode/MinDur/AccLimit. Used to adopt a live SVIN
+    // (matching MinDur) without CFGSVIN/SAVEPAR/PAIR023, which would zero Obs.
+    bool getSurveyInConfig(SurveyInConfig& out, uint32_t timeoutMs = 1500);
+    static bool tryParseSvinStatus(const String& line, SvinStatus& out);
     // Sends a survey-in query and waits for an OK response containing ECEF values.
     // Returns true only when ECEF is parsed and stored in _capturedSurveyEcef.
     bool querySurveyInAndCaptureEcef(uint32_t timeoutMs = 2000);
@@ -440,8 +463,9 @@ public:
     PresetResult applyBaseFixedPreset(double latDeg, double lonDeg, double altM, bool enableRtcm = true, bool save = true);
 
     // Mission profiles with optional verification queries after configuration.
-    // applySurveyBaseProfile enables PQTMSVINSTATUS at RATE 1; lower bulky NMEA
-    // (GSV / PQTMSVINSTATUS RATE 10) after apply, then SAVEPAR + rebootModule().
+    // applySurveyBaseProfile enables PQTMSVINSTATUS at RATE 1. Callers should then
+    // apply LC29H_MessageSchedule::applyBaseStatusRates(), SAVEPAR, and rebootModule()
+    // unless getSurveyInConfig() shows a matching live SVIN (do not PAIR023 that).
     ProfileResult applyUasRoverProfile(uint32_t fixRateMs = 200, bool save = true, bool verify = true);
     ProfileResult applySurveyBaseProfile(uint32_t minTimeSec = 300, float minStdDevM = 15.0f, bool enableRtcm = true, bool save = true, bool verify = true);
     ProfileResult applyStaticBaseProfile(double latDeg, double lonDeg, double altM, bool enableRtcm = true, bool save = true, bool verify = true);

@@ -1,9 +1,10 @@
 #include <LC29H_GNSS.h>
 #include <LC29H_ProjectConfig.h>
 
-// Full reference/demo: project config, queries, and Serial Monitor commands.
-// Survey-base default: AccLimit 15 m, GSV/SVIN RATE 10, SAVEPAR + PAIR023.
-// Do not survey_finalize until $PQTMSVINSTATUS Valid=2.
+// Interactive reference: bring-up, queries, and Serial Monitor commands.
+// Same DA survey rules as SimpleBaseStation (adopt live SVIN, AccLimit 15,
+// status NMEA schedule, PAIR023 only when starting a new survey).
+// survey_finalize only after $PQTMSVINSTATUS Valid=2.
 //
 // Minimum verified hardware:
 // - Arduino Mega 2560 class (AVR Uno/Nano class boards run out of RAM)
@@ -16,7 +17,6 @@
 namespace {
 constexpr uint32_t kConsoleBaud = 115200;
 constexpr uint32_t kGnssBaud = 115200;
-constexpr uint32_t kRebootSettleMs = 3000;
 
 #if defined(ARDUINO_ARCH_ESP32)
 constexpr int kGnssRxPin = 16;
@@ -53,11 +53,6 @@ void printProfileResult(const char* label, const LC29H_GNSS::ProfileResult& resu
     Serial.println(result.powerCycleRecommended ? "yes" : "no");
 }
 
-void applyStatusMessageRates() {
-    gnss.setMessageRate("GSV", 1, 10);
-    gnss.setMessageRate("PQTMSVINSTATUS", 1, 10);
-}
-
 void printStartupPins() {
     Serial.print("GNSS UART pins RX=");
     Serial.print(kGnssRxPin);
@@ -71,7 +66,7 @@ void setup() {
     delay(250);
 
 #if defined(ARDUINO_ARCH_ESP32)
-    gnssPort.begin(kGnssBaud, SERIAL_8N1, kGnssRxPin, kGnssTxPin);
+    LC29H_beginEsp32GnssUart(gnssPort, kGnssBaud, kGnssRxPin, kGnssTxPin);
 #else
     gnssPort.begin(kGnssBaud);
 #endif
@@ -81,7 +76,7 @@ void setup() {
 
     Serial.println();
     Serial.println("BasicConfiguration example");
-    Serial.println("AccLimit 15 m, GSV/SVIN RATE 10, SAVEPAR + PAIR023. RTCM stays 1 Hz.");
+    Serial.println("Interactive DA base/rover console. Adopt live SVIN; RTCM stays 1 Hz.");
     printStartupPins();
 
     if (!LC29H_projectConfigAvailable()) {
@@ -89,24 +84,12 @@ void setup() {
         return;
     }
 
-    LC29H_GNSS::ProfileResult profileResult{
-        LC29H_GNSS::ProfileStatus::CommandFailed,
-        false,
-    };
-    LC29H_applyProjectConfig(gnss, profileResult);
-    printProfileResult("Project config", profileResult);
-
-    if (profileResult.status != LC29H_GNSS::ProfileStatus::Success) {
+    LC29H_BringUpResult bringUp;
+    if (!LC29H_bringUp(gnss, bringUp, &Serial)) {
+        printProfileResult("Bring-up", bringUp.profile);
         return;
     }
-
-    applyStatusMessageRates();
-    gnss.saveConfig();
-    if (profileResult.powerCycleRecommended) {
-        Serial.println("Rebooting module (PAIR023). PAIR003/PAIR002 sleep is not enough.");
-        gnss.rebootModule();
-        delay(kRebootSettleMs);
-    }
+    printProfileResult("Bring-up", bringUp.profile);
 
     gnss.queryVersion();
     gnss.queryQVersion();
@@ -127,7 +110,7 @@ void setup() {
 
     Serial.println("Type help in Serial Monitor for interactive commands.");
     Serial.println("Try help reboot, help base_survey, help registry, and help family surveyandbase.");
-    Serial.println("survey_finalize only after Valid=2. Typed commands steal UART from the drain.");
+    Serial.println("survey_finalize only after Valid=2.");
 }
 
 void loop() {

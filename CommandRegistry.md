@@ -52,7 +52,7 @@ Status key:
 
 | Base | Status | Wrapper | Family | Direction | ACK | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| PQTMCFGSVIN | known | `configureBaseSurveyIn()/querySurveyIn()/querySurveyInAndCaptureEcef()/finalizeSurveyInToFixedBase()` | SurveyAndBase | ReadWrite | StatusLine | Survey-In workflow |
+| PQTMCFGSVIN | known | `configureBaseSurveyIn()/querySurveyIn()/getSurveyInConfig()/querySurveyInAndCaptureEcef()/finalizeSurveyInToFixedBase()` | SurveyAndBase | ReadWrite | StatusLine | Survey-In workflow; getSurveyInConfig for adopt |
 | PQTMCFGBASE | provisional | `configureBaseFixed()` | SurveyAndBase | Write | StatusLine | Log-backed fixed-base path |
 
 ## Output and Diagnostics

@@ -1,5 +1,9 @@
 #include <Arduino.h>
 
+// Tiny SRAM console: no LC29H_GNSS object. Type payloads to configure the module.
+// Survey-in on DA: AccLimit 15, SAVEPAR, PAIR023. Rover GIS: keep GGA/RMC on;
+// send PQTMCFGMSGRATE to slow GSV. Drain GNSS UART every loop.
+
 #if defined(ARDUINO_ARCH_AVR) && !defined(HAVE_HWSERIAL1)
 #include <SoftwareSerial.h>
 SoftwareSerial gnssPort(4, 3); // RX, TX

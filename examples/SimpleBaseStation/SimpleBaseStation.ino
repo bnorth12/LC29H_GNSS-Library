@@ -3,12 +3,11 @@
 
 // Simple survey-base bring-up. Not a full NTRIP/Wi-Fi app.
 //
-// 1) AccLimit 15 m (Quectel DA default). 0 / 1.5 / 2 left <Obs> at 0.
-// 2) Profile writes mode + CFGSVIN + RTCM and SAVEPAR.
-// 3) Lower bulky NMEA: GSV and PQTMSVINSTATUS RATE 10 (every 10 s at 1 Hz).
-//    RTCM MSM7+1005 stay 1 Hz (mission stream). NMEA is status.
-// 4) SAVEPAR then rebootModule() (PAIR023). PAIR003/PAIR002 sleep is not enough.
-// 5) Drain the GNSS UART every loop. One reader. Do not query* while draining.
+// 1) AccLimit 15 m. Matching live SVIN is adopted (no PAIR023, Obs kept).
+// 2) Otherwise CFGSVIN + SAVEPAR + PAIR023. PAIR003 sleep is not enough.
+// 3) Status NMEA schedule: GGA/RMC 1 s, GST/GSA/EPE 5 s, GSV/SVIN 10 s.
+//    RTCM MSM7+1005 stay 1 Hz (mission). NMEA is status.
+// 4) Drain mixed NMEA+RTCM every loop. MeanAcc 0.0000 is not "complete".
 //
 // Minimum verified hardware:
 // - Arduino Mega 2560 class (AVR Uno/Nano class boards run out of RAM)
@@ -21,7 +20,6 @@
 namespace {
 constexpr uint32_t kConsoleBaud = 115200;
 constexpr uint32_t kGnssBaud = 115200;
-constexpr uint32_t kRebootSettleMs = 3000;
 
 #if defined(ARDUINO_ARCH_ESP32)
 constexpr int kGnssRxPin = 16;
@@ -33,7 +31,21 @@ constexpr int kGnssTxPin = 3;
 SoftwareSerial gnssPort(kGnssRxPin, kGnssTxPin);
 #endif
 
+class DiscardStream : public Stream {
+public:
+    int available() override { return 0; }
+    int read() override { return -1; }
+    int peek() override { return -1; }
+    void flush() override {}
+    size_t write(uint8_t) override { return 1; }
+};
+
 LC29H_GNSS gnss(gnssPort, &Serial);
+DiscardStream discardRtcm;
+LC29H_GNSS::BridgeState bridgeState;
+LC29H_GNSS::BridgeStats bridgeStats;
+LC29H_GNSS::BridgeNmeaFilter nmeaFilter;
+bool exampleEnabled = false;
 
 const char* profileStatusName(LC29H_GNSS::ProfileStatus status) {
     switch (status) {
@@ -49,12 +61,6 @@ const char* profileStatusName(LC29H_GNSS::ProfileStatus status) {
         return "Unknown";
     }
 }
-
-// Status NMEA is not the mission stream. RATE is every N 1 Hz epochs.
-void applyStatusMessageRates() {
-    gnss.setMessageRate("GSV", 1, 10);
-    gnss.setMessageRate("PQTMSVINSTATUS", 1, 10);
-}
 }
 
 void setup() {
@@ -62,7 +68,7 @@ void setup() {
     delay(250);
 
 #if defined(ARDUINO_ARCH_ESP32)
-    gnssPort.begin(kGnssBaud, SERIAL_8N1, kGnssRxPin, kGnssTxPin);
+    LC29H_beginEsp32GnssUart(gnssPort, kGnssBaud, kGnssRxPin, kGnssTxPin);
 #else
     gnssPort.begin(kGnssBaud);
 #endif
@@ -72,53 +78,43 @@ void setup() {
 
     Serial.println();
     Serial.println("SimpleBaseStation example");
-    Serial.println("AccLimit 15 m, GSV/SVIN RATE 10, SAVEPAR + PAIR023.");
+    Serial.println("RTCM 1 Hz mission. Adopt live SVIN if MinDur matches.");
 
     if (!LC29H_projectConfigAvailable()) {
         Serial.println("lc29hconfig.h is required. Copy lc29hconfig.h.template into your sketch folder and rename it.");
         return;
     }
 
-    LC29H_GNSS::ProfileResult result{
-        LC29H_GNSS::ProfileStatus::CommandFailed,
-        false,
-    };
-    LC29H_applyProjectConfig(gnss, result);
-    Serial.print("Project config status=");
-    Serial.println(profileStatusName(result.status));
-
-    if (result.status != LC29H_GNSS::ProfileStatus::Success) {
+    LC29H_BringUpResult bringUp;
+    if (!LC29H_bringUp(gnss, bringUp, &Serial)) {
+        Serial.print("Bring-up failed, status=");
+        Serial.println(profileStatusName(bringUp.profile.status));
         return;
     }
 
-    applyStatusMessageRates();
-    if (!gnss.saveConfig()) {
-        Serial.println("Save after message rates failed.");
-        return;
-    }
-
-    if (result.powerCycleRecommended) {
-        Serial.println("Rebooting module (PAIR023). PAIR003/PAIR002 sleep is not enough.");
-        gnss.rebootModule();
-        delay(kRebootSettleMs);
-    }
-
+    exampleEnabled = true;
     gnss.queryVersion();
     gnss.queryReceiverMode();
     gnss.querySurveyIn();
-    Serial.println("Base survey profile ready. Type help for commands.");
-    Serial.println("Watch $PQTMSVINSTATUS: Valid=1 and Obs counting. survey_finalize only after Valid=2.");
+    Serial.println("Base survey ready. Watch $PQTMSVINSTATUS Valid=1 Obs counting.");
+    Serial.println("MeanAcc 0.0000 is a placeholder, not complete. survey_finalize only after Valid=2.");
 }
 
 void loop() {
-    // Typed console commands also read the GNSS UART. Use them between bursts,
-    // not as a second concurrent reader while a production pump owns the port.
-#if !defined(ARDUINO_AVR_MEGA2560)
     gnss.processSerialCommands();
-#endif
-
-    String line;
-    if (gnss.readLine(line, 0)) {
-        Serial.println(line);
+    if (!exampleEnabled) {
+        return;
     }
+
+    // Pump every loop. Print complete NMEA after the parser; do not parse here.
+    gnss.forwardBridgeAvailable(
+        discardRtcm,
+        bridgeState,
+        LC29H_GNSS::BridgeMode::RtcmAndNmeaAllowlist,
+        nmeaFilter,
+        false,
+        &bridgeStats,
+        0,
+        &Serial,
+        nullptr);
 }

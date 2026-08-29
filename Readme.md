@@ -40,6 +40,16 @@ Raw-data design note:
 - It can be used for configuration/control while raw GNSS/RTCM bytes are forwarded upstream.
 - Parsing can remain in dedicated libraries/apps (for example TinyGPS++, RTK parsers, SW Maps feeders, NTRIP bridge apps).
 
+## Version 0.2.8
+
+Helpers the examples use for DA survey-in and UART budget:
+
+- `getSurveyInConfig()` / `tryParseSvinStatus()` so a matching live survey-in can be adopted without PAIR023.
+- `LC29H_MessageSchedule.h`: base status NMEA table, rover GIS table (GGA/RMC every epoch, GSV ~10 s).
+- `LC29H_bringUp()` in `LC29H_ProjectConfig.h` applies that path for the configured role.
+
+How each sketch uses those helpers is in `examples/README.md` and the README next to each `.ino`.
+
 ## Version 0.2.7
 
 Survey-in and example bring-up aligned with LC29H(DA) field use:
@@ -209,27 +219,9 @@ Override behavior:
 - LC29H_GNSS.cpp
 - LC29H_ProjectConfig.h
 - lc29hconfig.h.template
-- examples
-  - BasicConfiguration/BasicConfiguration.ino
-  - BasicConfiguration/lc29hconfig.h
-  - SimpleRover/SimpleRover.ino
-  - SimpleRover/lc29hconfig.h
-  - SimpleBaseStation/SimpleBaseStation.ino
-  - SimpleBaseStation/lc29hconfig.h
-  - StreamBridge/StreamBridge.ino
-  - StreamBridge/lc29hconfig.h
-  - BaseSerialBridge/BaseSerialBridge.ino
-  - BaseSerialBridge/lc29hconfig.h
-  - ESP32BaseStation/ESP32BaseStation.ino
-  - ESP32BaseStation/lc29hconfig.h
-  - ESP32UsbUartBridge/ESP32UsbUartBridge.ino
-  - ESP32UsbUartBridge/lc29hconfig.h
-  - ESP32BtRoamer/ESP32BtRoamer.ino
-  - ESP32BtRoamer/lc29hconfig.h
-  - RoverCorrectionBridge/RoverCorrectionBridge.ino
-  - RoverCorrectionBridge/lc29hconfig.h
-  - ReducedCommandConsole/ReducedCommandConsole.ino
-  - ReducedSerialBridge/ReducedSerialBridge.ino
+- LC29H_MessageSchedule.h
+- examples/README.md (index; each sketch folder also has README.md)
+- examples (see that index for how each sketch uses the library)
 - CommandReference.md
 
 Note: this repository currently keeps both source files and metadata/docs in the root directory.
@@ -239,7 +231,7 @@ Note: this repository currently keeps both source files and metadata/docs in the
 1. Copy/open this repository in your Arduino libraries folder.
 2. Open the example-local lc29hconfig.h in the example directory you want to run.
 3. Adjust role and values in that lc29hconfig.h for your project type (UAS rover, base survey, or static base).
-4. Open examples/BasicConfiguration/BasicConfiguration.ino.
+4. Open examples/README.md, then the example folder you want (start with SimpleBaseStation or SimpleRover).
 5. Set GNSS serial pins/port for your board.
 6. Open Serial Monitor at 115200 baud.
 7. Type help and use interactive commands.
@@ -252,32 +244,20 @@ Example config behavior:
 
 ## Minimal examples
 
-- SimpleRover: examples/SimpleRover/SimpleRover.ino
-  - Applies UAS rover profile with save + verify.
-- SimpleBaseStation: examples/SimpleBaseStation/SimpleBaseStation.ino
-  - Applies survey-base profile (AccLimit 15 m) + GSV/SVIN RATE 10 + SAVEPAR + PAIR023.
-- BasicConfiguration: examples/BasicConfiguration/BasicConfiguration.ino
-  - Full reference/demo flow including project config and survey ECEF capture.
-- BaseSerialBridge: examples/BaseSerialBridge/BaseSerialBridge.ino
-  - Bench base pipeline: GNSS output parsed and forwarded to rover over UART link.
-- ESP32BaseStation: examples/ESP32BaseStation/ESP32BaseStation.ino
-  - ESP32-only base station bring-up with Serial1/Serial2 and example-local UART GPIO mapping in lc29hconfig.h.
-- ESP32UsbUartBridge: examples/ESP32UsbUartBridge/ESP32UsbUartBridge.ino
-  - Native USB console plus CH340-backed second USB-C bridge for fast GNSS/QGNSS bring-up over Serial0.
-- ESP32BtRoamer: examples/ESP32BtRoamer/ESP32BtRoamer.ino
-  - ESP32 rover path that ingests RTCM corrections from a phone app over Bluetooth, using BT Classic SPP on classic ESP32 and BLE on ESP32-S3.
-- RoverCorrectionBridge: examples/RoverCorrectionBridge/RoverCorrectionBridge.ino
-  - Bench rover pipeline: receives correction bytes over UART and writes raw to GNSS.
+Each sketch folder has a README that matches the comments at the top of the `.ino`. Index: examples/README.md.
+
+- SimpleRover: ingest RTCM (ESP32 Serial2) first, publish GGA+RMC every epoch for GIS.
+- SimpleBaseStation: survey-in base; adopt a live matching SVIN or SAVEPAR+PAIR023; drain UART; RTCM 1 Hz.
+- BasicConfiguration: same bring-up plus Serial Monitor `help` commands.
+- BaseSerialBridge / RoverCorrectionBridge: wired bench pair (RTCM base → rover; rover GGA+RMC out).
+- ESP32BaseStation: ESP32 Serial1 GNSS, Serial2 RTCM out.
+- ESP32UsbUartBridge: native USB console + CH340 raw GNSS for QGNSS (one host at a time).
+- ESP32BtRoamer: phone Bluetooth RTCM in, GGA+RMC out (SPP or BLE).
 
 ## Reduced capability examples (UNO/Micro/Feather class)
 
-- ReducedCommandConsole: examples/ReducedCommandConsole/ReducedCommandConsole.ino
-  - No LC29H_GNSS object; sends core PQTM payloads with lightweight checksum builder.
-  - Intended for memory-constrained boards where full feature examples are too heavy.
-  - Commands: help, status, rover [rateMs], base, fixrate MS, hot/warm/cold, gnss_start/gnss_stop, send PAYLOAD.
-- ReducedSerialBridge: examples/ReducedSerialBridge/ReducedSerialBridge.ino
-  - Minimal raw byte bridge: USB Serial <-> GNSS UART.
-  - Useful for pure pass-through diagnostics and external host tools.
+- ReducedCommandConsole: typed payloads, `save`/`reboot` (PAIR023), no LC29H_GNSS object.
+- ReducedSerialBridge: raw USB Serial <-> GNSS UART, one reader each side.
 
 Default serial wiring in reduced examples:
 

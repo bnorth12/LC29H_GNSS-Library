@@ -1,5 +1,8 @@
 #include <Arduino.h>
 
+// Raw USB Serial <-> GNSS UART passthrough. No LC29H_GNSS object.
+// One reader on each side. Do not also open QGNSS on this same UART.
+
 #if defined(ARDUINO_ARCH_AVR) && !defined(HAVE_HWSERIAL1)
 #include <SoftwareSerial.h>
 SoftwareSerial gnssPort(4, 3); // RX, TX

@@ -1,11 +1,11 @@
 #include <LC29H_GNSS.h>
 #include <LC29H_ProjectConfig.h>
 
-// ESP32 survey-base bring-up with RTCM forwarded on Serial2. Not a Wi-Fi/NTRIP app.
+// ESP32 survey-base: GNSS on Serial1, RTCM forwarded on Serial2. Not Wi-Fi/NTRIP.
 //
-// AccLimit 15 m, GSV/SVIN RATE 10, SAVEPAR + PAIR023 (not PAIR003 sleep).
-// RTCM at 1 Hz is the mission stream. NMEA is status.
-// Pump GNSS UART every loop; do not parse inside the pump callback.
+// LC29H_bringUp() adopts a matching live survey-in, or writes CFGSVIN with
+// AccLimit 15 m, SAVEPAR, and PAIR023. Status NMEA is scheduled; RTCM stays 1 Hz.
+// Pump Serial1 every loop. Print complete NMEA; do not parse in the callback.
 //
 // Minimum verified hardware:
 // - ESP32-S3 target (compiled with esp32:esp32:esp32s3)
@@ -20,7 +20,6 @@ constexpr uint32_t kConsoleBaud = 115200;
 constexpr uint32_t kGnssBaud = 115200;
 constexpr uint32_t kRtcmBaud = 115200;
 constexpr uint32_t kStatusIntervalMs = 1000;
-constexpr uint32_t kRebootSettleMs = 3000;
 
 constexpr int kGnssRxPin = LC29H_CFG_ESP32_GNSS_RX_PIN;
 constexpr int kGnssTxPin = LC29H_CFG_ESP32_GNSS_TX_PIN;
@@ -55,17 +54,13 @@ const char* profileStatusName(LC29H_GNSS::ProfileStatus status) {
     }
 }
 
-void applyStatusMessageRates() {
-    gnss.setMessageRate("GSV", 1, 10);
-    gnss.setMessageRate("PQTMSVINSTATUS", 1, 10);
-}
 }
 
 void setup() {
     Serial.begin(kConsoleBaud);
     delay(250);
 
-    gnssPort.begin(kGnssBaud, SERIAL_8N1, kGnssRxPin, kGnssTxPin);
+    LC29H_beginEsp32GnssUart(gnssPort, kGnssBaud, kGnssRxPin, kGnssTxPin);
     rtcmPort.begin(kRtcmBaud, SERIAL_8N1, kRtcmRxPin, kRtcmTxPin);
 
     gnss.attachConsole(Serial);
@@ -74,7 +69,7 @@ void setup() {
     Serial.println();
     Serial.println("ESP32BaseStation example");
     Serial.println("ESP32-only base station setup with optional RTCM forwarding on Serial2.");
-    Serial.println("AccLimit 15 m, GSV/SVIN RATE 10, SAVEPAR + PAIR023. RTCM stays 1 Hz.");
+    Serial.println("RTCM 1 Hz mission. Adopt live SVIN if MinDur matches. Status NMEA scheduled.");
     Serial.println("Console output uses native USB Serial; edit lc29hconfig.h for your board UART GPIO mapping.");
     Serial.println("Bridge allowlist defaults: GGA on, GST off, RMC off, PQTM off.");
     Serial.println("Use help bridge and help registry in the library console for runtime guidance.");
@@ -92,28 +87,11 @@ void setup() {
         return;
     }
 
-    LC29H_GNSS::ProfileResult profileResult{
-        LC29H_GNSS::ProfileStatus::CommandFailed,
-        false,
-    };
-    LC29H_applyProjectConfig(gnss, profileResult);
-
-    Serial.print("Project config status=");
-    Serial.println(profileStatusName(profileResult.status));
-    if (profileResult.powerCycleRecommended) {
-        Serial.println("Power cycle recommended after configuration.");
-    }
-
-    if (profileResult.status != LC29H_GNSS::ProfileStatus::Success) {
+    LC29H_BringUpResult bringUp;
+    if (!LC29H_bringUp(gnss, bringUp, &Serial)) {
+        Serial.print("Bring-up failed, status=");
+        Serial.println(profileStatusName(bringUp.profile.status));
         return;
-    }
-
-    applyStatusMessageRates();
-    gnss.saveConfig();
-    if (profileResult.powerCycleRecommended) {
-        Serial.println("Rebooting module (PAIR023). PAIR003/PAIR002 sleep is not enough.");
-        gnss.rebootModule();
-        delay(kRebootSettleMs);
     }
 
     bridgeMode = LC29H_projectBridgeMode();
@@ -134,8 +112,8 @@ void setup() {
 }
 
 void loop() {
-    // Console commands steal UART bytes from the pump. Fine for bench typing;
-    // a production sketch should not mix processSerialCommands with the pump.
+    // processSerialCommands reads USB Serial only. Queries it sends will share
+    // the GNSS UART with the pump — type them between bursts, not during RTCM.
     gnss.processSerialCommands();
 
     if (!exampleEnabled) {

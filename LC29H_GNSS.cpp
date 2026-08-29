@@ -883,6 +883,53 @@ bool LC29H_GNSS::querySurveyIn() {
     return sendPayload("PQTMCFGSVIN,R");
 }
 
+bool LC29H_GNSS::getSurveyInConfig(SurveyInConfig& out, uint32_t timeoutMs) {
+    out = SurveyInConfig{};
+    String line;
+    if (!queryAndWaitLine("PQTMCFGSVIN,R", "PQTMCFGSVIN,OK", line, timeoutMs)) {
+        return false;
+    }
+
+    String fields[16];
+    const size_t n = splitCsv(line, fields, 16);
+    if (n < 5) {
+        _setError(ErrorCode::ParseFailed, "getSurveyInConfig: insufficient fields");
+        return false;
+    }
+
+    out.mode = static_cast<uint8_t>(fields[2].toInt());
+    out.minDur = static_cast<uint32_t>(fields[3].toInt());
+    out.accLimitM = fields[4].toFloat();
+    if (n >= 8) {
+        out.ecef.x = fields[5].toFloat();
+        out.ecef.y = fields[6].toFloat();
+        out.ecef.z = fields[7].toFloat();
+        out.ecef.valid = true;
+    }
+    return true;
+}
+
+bool LC29H_GNSS::tryParseSvinStatus(const String& line, SvinStatus& out) {
+    out = SvinStatus{};
+    String s = normalizeSentence(line);
+    if (!s.startsWith("PQTMSVINSTATUS")) {
+        return false;
+    }
+
+    String fields[16];
+    const size_t n = splitCsv(s, fields, 16);
+    if (n < 12) {
+        return false;
+    }
+
+    out.validCode = static_cast<uint8_t>(fields[3].toInt());
+    out.obs = static_cast<uint32_t>(fields[6].toInt());
+    out.cfgDur = static_cast<uint32_t>(fields[7].toInt());
+    out.meanAccM = fields[11].toFloat();
+    out.present = (out.validCode == 1 || out.validCode == 2);
+    return true;
+}
+
 bool LC29H_GNSS::querySurveyInAndCaptureEcef(uint32_t timeoutMs) {
     // Query first, then parse the incoming response stream for the matching
     // PQTMCFGSVIN,OK payload that includes ECEF coordinates.

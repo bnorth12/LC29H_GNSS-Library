@@ -17,6 +17,8 @@ configureRover`tKEYWORD2
 configureBaseStation`tKEYWORD2
 configureBaseSurveyIn`tKEYWORD2
 querySurveyIn`tKEYWORD2
+getSurveyInConfig`tKEYWORD2
+tryParseSvinStatus`tKEYWORD2
 querySurveyInAndCaptureEcef`tKEYWORD2
 hasCapturedSurveyEcef`tKEYWORD2
 getCapturedSurveyEcef`tKEYWORD2

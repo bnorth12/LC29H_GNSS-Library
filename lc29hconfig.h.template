@@ -3,8 +3,8 @@
 // Copy this file to your sketch/project folder and rename it to:
 //   lc29hconfig.h
 //
-// The project config runner in LC29H_ProjectConfig.h will detect this file
-// and apply the selected role/profile at startup.
+// The project config runner in LC29H_ProjectConfig.h will detect this file.
+// Examples call LC29H_bringUp() (adopt live SVIN, NMEA schedule, PAIR023 as needed).
 
 // -----------------------------------------------------------------------------
 // ROLE SELECTOR
