@@ -2,7 +2,22 @@
 
 [![Arduino CLI Validate](https://github.com/bnorth12/LC29H_GNSS-Library/actions/workflows/arduino-cli-validate.yml/badge.svg)](https://github.com/bnorth12/LC29H_GNSS-Library/actions/workflows/arduino-cli-validate.yml)
 
-Configuration-focused Arduino library starter for Quectel LC29H modules.
+Configuration-focused Arduino library for Quectel **LC29H(BA), LC29H(BS), LC29H(DA), and LC29H(EA)**. Wrappers exist for the union of those ICDs; not every command is legal on every variant (see **Module variants** below).
+
+## Module variants
+
+Protocol sources: LC29H&LC79H Series GNSS Protocol Specification **v1.5** (BA/DA/EA and AA/CA/AL notes) and LC29H(BS) GNSS Protocol Specification **v1.1**.
+
+| Variant | Role | Survey-in | RTCM | Baud | NMEA rates | Do not use on this variant |
+| --- | --- | --- | --- | --- | --- | --- |
+| **DA** | RTK **base** (this ESP32 app) | `PQTMCFGSVIN` + SAVEPAR + **PAIR023**. AccLimit **15**. Fix interval **1000 ms only**. | PAIR432 MSM7, PAIR434 1005; query 433/435 | **PAIR864** (v1.5 lists `PQTMCFGUART` as AA/AL). Reboot to apply. | `PQTMCFGMSGRATE` or PAIR062 Types **0–5** only. GSV is one family (all talkers). | PAIR066/080/100, `PQTMCFGNMEATID`, `PQTMCFGPROT`, `PQTMGETUTC` |
+| **EA** | RTK **rover** (DR); same app family as DA | Same CFGSVIN path as DA if used as base. Fix interval **100–1000 ms**. PAIR062 OutputRate **0 or 1 only**. | RTCM **in** (MSM) + optional out | PAIR864 | CFGMSGRATE; keep GGA/RMC every epoch | AA/AL-only PAIR (066, 070–073, 104, 420, …) |
+| **BA** | DR rover | CFGSVIN listed for BA in v1.5 | PAIR432 family | PAIR864 / PQTM where accepted | CFGMSGRATE | Do not assume DA 1 Hz-only; `PQTMGETUTC` / `PQTMQVER` are BA/CA |
+| **BS** | Kit base (LoRa in-module). **Separate 27-page ICD.** | CFGSVIN, SAVEPAR, SVINSTATUS, EPE, CFGMSGRATE | PAIR432–437 **only** (no 023 in the BS book) | **PAIR864** (in the BS book) | CFGMSGRATE | Full v1.5 PAIR set (050, 062, 023, 752, …) is **not** in the BS spec — do not send them on BS |
+
+Shared and worth exposing in the library for DA/EA/BS bases: CFGSVIN, SAVEPAR, CFGMSGRATE, PAIR432/433/434/435/436/437, PAIR864. PAIR023 is **not** in v1.5 chapter 2.4 and **not** in the BS book; it remains a DA/EA field command (`rebootModule()`).
+
+`applyBaseStatusRates()` is the DA/EA base table (GSV RATE 20, GSA 8, GLL/VTG/GNS/GRS/ZDA **off**). Rover GIS rates stay in `applyRoverGisRates()` (EA/BA).
 
 ## Current status
 
