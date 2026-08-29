@@ -40,6 +40,32 @@ Raw-data design note:
 - It can be used for configuration/control while raw GNSS/RTCM bytes are forwarded upstream.
 - Parsing can remain in dedicated libraries/apps (for example TinyGPS++, RTK parsers, SW Maps feeders, NTRIP bridge apps).
 
+## Version 0.2.4
+
+Bridge pump hardening for mixed NMEA+RTCM on ESP32:
+
+- `nmeaLine` is `reserve()`d to `kMaxBridgeNmeaChars` before per-byte appends, so a capped line
+  does not realloc the Arduino `String` on every character.
+- `_observeLineForAccuracy` is skipped when `localNmeaOut` is set. The host callback already
+  parses the sentence; running the library tracker on the same stack was nesting two String-heavy
+  walks inside `forwardBridgeAvailable`.
+- `forwardBridgeAvailable` always returns after `kMaxBridgePumpMs` (15 ms) even when `maxBytes`
+  is 0, so a slow callback cannot keep `while (available)` running until heap/stack collapse.
+  Remaining UART bytes are picked up on the next call.
+
+## Version 0.2.3
+
+Bridge parser hardening (mixed NMEA+RTCM on one UART):
+
+- `forwardBridgeAvailable` no longer grows `BridgeState::nmeaLine` without a bound. A false NMEA
+  start (`$`/`!` appearing inside RTCM) previously appended every subsequent byte until a newline,
+  which can exhaust heap and panic an ESP32 before the sketch loop runs again.
+- NMEA assembly is now capped at `LC29H_GNSS::kMaxBridgeNmeaChars` (256). A non-ASCII byte, or a
+  line that hits the cap, aborts the run, counts `BridgeStats::nmeaLineResyncs`, and resyncs: `0xD3`
+  starts an RTCM frame, `$`/`!` starts a new NMEA line, anything else returns to Idle.
+- `readLine` uses the same 256-character cap so a blocking query cannot swallow an RTCM burst into
+  an unbounded `String`.
+
 ## Known limits
 
 Board-driven default sizing:
@@ -610,6 +636,10 @@ For application stacks that need unparsed bytes:
   - Full RTCM/NMEA bridge parser with reusable state and mode/filter controls.
   - Supports NMEA filter enable/disable and optional raw local debug mirror stream.
   - When the NMEA allowlist is enabled, the local NMEA debug mirror only prints allowed lines.
+  - Caps NMEA assembly at kMaxBridgeNmeaChars and aborts on non-ASCII so mixed RTCM cannot grow
+    an unbounded String (see Version 0.2.3). Resync counts are in BridgeStats::nmeaLineResyncs.
+  - Returns after kMaxBridgePumpMs even when maxBytes is 0 (see Version 0.2.4).
+  - Skips the built-in accuracy tracker when localNmeaOut is provided.
 - isNmeaAllowedByFilter(line, filter)
   - Reusable allowlist check for NMEA forwarding decisions.
 - tryParsePairAck(line, ack)

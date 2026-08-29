@@ -273,6 +273,9 @@ public:
         uint32_t rtcmFramesForwarded = 0;
         uint32_t nmeaLinesObserved = 0;
         uint32_t nmeaLinesForwarded = 0;
+        // False NMEA runs aborted because the line grew past kMaxBridgeNmeaChars or hit a
+        // non-ASCII byte (typical when a '$' in RTCM payload is mistaken for an NMEA start).
+        uint32_t nmeaLineResyncs = 0;
     };
 
     enum class BridgeParserState : uint8_t {
@@ -282,6 +285,13 @@ public:
         RtcmHdr3,
         RtcmFrame
     };
+
+    // NMEA 4.11 is 82 chars; Quectel PQTM lines can be longer. Anything past this is not a real
+    // sentence and is treated as a desync (see forwardBridgeAvailable).
+    static constexpr size_t kMaxBridgeNmeaChars = 256;
+    // Hard cap so a slow NMEA callback (or mixed RTCM) cannot keep the pump in while(available)
+    // until heap/stack collapse. Remaining bytes are processed on the next call.
+    static constexpr uint32_t kMaxBridgePumpMs = 15;
 
     struct BridgeState {
         BridgeParserState state = BridgeParserState::Idle;

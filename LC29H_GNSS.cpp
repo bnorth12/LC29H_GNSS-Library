@@ -48,6 +48,35 @@ String nmeaHead(const String& line) {
     return line.substring(1, comma);
 }
 
+bool hasValidNmeaChecksum(const String& line) {
+    String trimmed = line;
+    trimmed.trim();
+    if (trimmed.length() < 5 || (trimmed[0] != '$' && trimmed[0] != '!')) {
+        return false;
+    }
+
+    const int star = trimmed.indexOf('*');
+    if (star <= 1 || star + 3 != static_cast<int>(trimmed.length())) {
+        return false;
+    }
+
+    uint8_t checksum = 0;
+    for (int index = 1; index < star; ++index) {
+        checksum ^= static_cast<uint8_t>(trimmed.charAt(index));
+    }
+
+    auto hexValue = [](char value) -> int {
+        if (value >= '0' && value <= '9') return value - '0';
+        if (value >= 'A' && value <= 'F') return value - 'A' + 10;
+        if (value >= 'a' && value <= 'f') return value - 'a' + 10;
+        return -1;
+    };
+
+    const int high = hexValue(trimmed.charAt(star + 1));
+    const int low = hexValue(trimmed.charAt(star + 2));
+    return high >= 0 && low >= 0 && checksum == static_cast<uint8_t>((high << 4) | low);
+}
+
 static bool parseFloatField(const String& s, float& out) {
     if (s.length() == 0) {
         return false;
@@ -1713,9 +1742,13 @@ size_t LC29H_GNSS::forwardBridgeAvailable(
     Stream* localNmeaOut,
     Stream* localRawOut) {
     size_t consumed = 0;
+    const uint32_t pumpStartMs = millis();
 
     while (_gnss.available() > 0) {
         if (maxBytes > 0 && consumed >= maxBytes) {
+            break;
+        }
+        if ((millis() - pumpStartMs) >= kMaxBridgePumpMs) {
             break;
         }
 
@@ -1746,6 +1779,7 @@ size_t LC29H_GNSS::forwardBridgeAvailable(
         case BridgeParserState::Idle:
             if (by == '$' || by == '!') {
                 state.nmeaLine = "";
+                state.nmeaLine.reserve(kMaxBridgeNmeaChars);
                 state.nmeaLine += static_cast<char>(by);
                 state.state = BridgeParserState::Nmea;
                 continue;
@@ -1760,11 +1794,15 @@ size_t LC29H_GNSS::forwardBridgeAvailable(
             }
             continue;
 
-        case BridgeParserState::Nmea:
-            state.nmeaLine += static_cast<char>(by);
+        case BridgeParserState::Nmea: {
             if (by == '\n') {
                 String line = state.nmeaLine;
                 if (line.length() > 0) {
+                    if (!hasValidNmeaChecksum(line)) {
+                        state.nmeaLine = "";
+                        state.state = BridgeParserState::Idle;
+                        continue;
+                    }
                     if (stats != nullptr) {
                         ++stats->nmeaLinesObserved;
                     }
@@ -1777,9 +1815,11 @@ size_t LC29H_GNSS::forwardBridgeAvailable(
                         if (mode != BridgeMode::RtcmAndNmeaAllowlist || shouldForwardNmea) {
                             localNmeaOut->println(line);
                         }
+                    } else {
+                        // Host already parses via localNmeaOut; skip the extra String-heavy
+                        // accuracy walk so the two stacks are not nested inside this pump.
+                        _observeLineForAccuracy(line);
                     }
-
-                    _observeLineForAccuracy(line); // Corrected context
 
                     if (shouldForwardNmea) {
                         out.print(line);
@@ -1793,15 +1833,55 @@ size_t LC29H_GNSS::forwardBridgeAvailable(
 
                 state.nmeaLine = "";
                 state.state = BridgeParserState::Idle;
+                continue;
             }
+
+            if (by == '\r') {
+                continue;
+            }
+
+            const bool printable = (by >= 0x20 && by <= 0x7E);
+            if (!printable || state.nmeaLine.length() >= kMaxBridgeNmeaChars) {
+                if (stats != nullptr) {
+                    ++stats->nmeaLineResyncs;
+                }
+                state.nmeaLine = "";
+                state.state = BridgeParserState::Idle;
+                if (by == 0xD3) {
+                    state.rtcmBuf[0] = by;
+                    state.rtcmIndex = 1;
+                    state.rtcmExpected = 0;
+                    state.state = BridgeParserState::RtcmHdr2;
+                } else if (by == '$' || by == '!') {
+                    state.nmeaLine.reserve(kMaxBridgeNmeaChars);
+                    state.nmeaLine += static_cast<char>(by);
+                    state.state = BridgeParserState::Nmea;
+                }
+                continue;
+            }
+
+            state.nmeaLine += static_cast<char>(by);
             continue;
+        }
 
         case BridgeParserState::RtcmHdr2:
+            if (state.rtcmIndex >= sizeof(state.rtcmBuf)) {
+                state.state = BridgeParserState::Idle;
+                state.rtcmIndex = 0;
+                state.rtcmExpected = 0;
+                continue;
+            }
             state.rtcmBuf[state.rtcmIndex++] = by;
             state.state = BridgeParserState::RtcmHdr3;
             continue;
 
         case BridgeParserState::RtcmHdr3: {
+            if (state.rtcmIndex >= sizeof(state.rtcmBuf)) {
+                state.state = BridgeParserState::Idle;
+                state.rtcmIndex = 0;
+                state.rtcmExpected = 0;
+                continue;
+            }
             state.rtcmBuf[state.rtcmIndex++] = by;
 
             const size_t payloadLen =
@@ -1821,6 +1901,12 @@ size_t LC29H_GNSS::forwardBridgeAvailable(
         }
 
         case BridgeParserState::RtcmFrame:
+            if (state.rtcmIndex >= sizeof(state.rtcmBuf)) {
+                state.state = BridgeParserState::Idle;
+                state.rtcmIndex = 0;
+                state.rtcmExpected = 0;
+                continue;
+            }
             state.rtcmBuf[state.rtcmIndex++] = by;
             if (state.rtcmIndex >= state.rtcmExpected) {
                 if (mode == BridgeMode::RtcmOnly || mode == BridgeMode::RtcmAndNmeaAllowlist) {
@@ -1857,10 +1943,14 @@ bool LC29H_GNSS::readLine(String& outLine, uint32_t timeoutMs) {
                 continue;
             }
             if (c == '\n') {
-                if (outLine.length() > 0) {
+                if (outLine.length() > 0 && outLine.length() <= kMaxBridgeNmeaChars) {
                     _observeLineForAccuracy(outLine);
                     return true;
                 }
+                outLine = "";
+                continue;
+            }
+            if (outLine.length() >= kMaxBridgeNmeaChars) {
                 continue;
             }
             outLine += c;
@@ -2531,6 +2621,8 @@ void LC29H_GNSS::printBridgeStatus(
     out.print(stats.nmeaLinesObserved);
     out.print(", nmeaFwd=");
     out.print(stats.nmeaLinesForwarded);
+    out.print(", nmeaResyncs=");
+    out.print(stats.nmeaLineResyncs);
 
     if (uptimeMs > 0) {
         out.print(", uptimeMs=");
