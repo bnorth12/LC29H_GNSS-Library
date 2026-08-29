@@ -4,6 +4,7 @@
 // Forwards GNSS output to an upstream UART for a caster or second board.
 // RTCM is the mission stream. LC29H_bringUp() adopts a matching live SVIN or
 // starts survey-in, then schedules status NMEA. Pump every loop.
+// Message payloads: this folder's README and library Readme "Module messages in practice".
 //
 // Minimum verified hardware:
 // - Arduino Mega 2560 class (AVR Uno/Nano class boards run out of RAM)

@@ -12,3 +12,17 @@ For Uno/Micro/Feather SRAM. There is **no** `LC29H_GNSS` object. The sketch buil
 ## Hardware
 
 Serial1 when present; otherwise SoftwareSerial RX4/TX3.
+
+## Messages this sketch uses
+
+You type the payloads. Same meanings as [Module messages in practice](../../Readme.md#module-messages-in-practice).
+
+Typical DA survey-in:
+
+```
+send PQTMCFGSVIN,W,1,3600,15,0,0,0
+save
+reboot
+```
+
+Typical rover GIS: `rover 200`, then `send PQTMCFGMSGRATE,W,GSV,50` at a 200 ms fix so GSV is ~10 s. Keep GGA/RMC on.

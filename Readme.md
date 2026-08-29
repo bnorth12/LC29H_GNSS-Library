@@ -34,11 +34,17 @@ Initial library skeleton is now implemented with:
 
 This starter intentionally focuses on reliable command transport and reproducible setup flow first.
 
+What each PQTM/PAIR/NMEA/RTCM item does in a base or rover sketch (RATE, AccLimit, PAIR023 vs PAIR003, which example uses which) is in **[Module messages in practice](#module-messages-in-practice)**.
+
 Raw-data design note:
 
 - This library is intentionally compatible with higher-layer NMEA/RTK stacks.
 - It can be used for configuration/control while raw GNSS/RTCM bytes are forwarded upstream.
 - Parsing can remain in dedicated libraries/apps (for example TinyGPS++, RTK parsers, SW Maps feeders, NTRIP bridge apps).
+
+## Version 0.2.9
+
+Library Readme **Module messages in practice**: what each PQTM/PAIR/NMEA/RTCM item does in a base or rover sketch, RATE vs Hz, DA survey-in gotchas, and which example uses which payload. Example READMEs list the subset that sketch sends.
 
 ## Version 0.2.8
 
@@ -196,6 +202,102 @@ Empty `available()` while TX (commands) still works is an ESP32 RX-path stall or
 
 - `fifoOvf` / `bufferFull` climbing → sketch not draining fast enough
 - `available() == 0`, no overflow, no command replies → FIFO never filled (RX pin/driver, or module TX silent)
+
+## Module messages in practice
+
+Quectel protocol PDFs list fields and ACKs. They do not say which sentences matter for a base vs a rover, what `RATE` really means, or which restart actually applies survey-in on LC29H(DA). This section is that usage note. The examples send these payloads through library helpers (`sendPayload` adds `$…*CS\r\n`).
+
+Two directions on the same UART:
+
+| Direction | What | Who cares |
+| --- | --- | --- |
+| **To the module** | `$PQTM…` / `$PAIR…` configuration | Sketch `setup()` / `LC29H_bringUp()` |
+| **From the module** | NMEA text, `$PQTMSVINSTATUS`, RTCM frames (`0xD3`) | Sketch `loop()` pump or GIS app |
+
+**Base mission:** RTCM MSM7 + 1005 at the nav epoch (1 Hz). NMEA is status.  
+**Rover mission:** RTCM **in** (corrections), GGA (position) and RMC (time) **out**. Other NMEA is for GIS as needed.
+
+### RATE is not Hertz
+
+`$PQTMCFGMSGRATE,W,<MsgName>,<Rate>[,<MsgVer>]`
+
+`<Rate>` is **every N navigation epochs**. `0` disables the sentence.
+
+| Fix interval | RATE 1 | RATE 5 | RATE 10 | RATE 50 |
+| --- | --- | --- | --- | --- |
+| 1000 ms (base) | 1 s | 5 s | 10 s | 50 s |
+| 200 ms (rover) | 200 ms | 1 s | 2 s | 10 s |
+
+On LC29H(DA), **standard NMEA names omit `<MsgVer>`**. `$PQTM…` names still send it (`1`, or `2` for `PQTMEPE`). The library `setMessageRate()` does that. Hand-built payloads that always append `,1` after `GGA`/`GSV` can fail on DA.
+
+### Commands to the module (what they actually do)
+
+| Payload | Library helper | What happens | Field notes the PDF undersells |
+| --- | --- | --- | --- |
+| `PQTMCFGRCVRMODE,W,1` | `setReceiverModeRover()` | Rover (accepts RTCM, outputs position) | Base mode **stops** normal NMEA until you turn sentences back on. |
+| `PQTMCFGRCVRMODE,W,2` | `setReceiverModeBase()` | Base (emits RTCM once enabled) | Same: restore GGA/RMC/GSV with CFGMSGRATE after this. |
+| `PQTMCFGRCVRMODE,R` | `queryReceiverMode()` / `getReceiverMode()` | `OK,<mode>` 1=rover 2=base | Use this to see what you actually have after reboot. |
+| `PQTMCFGSVIN,W,1,<MinDur>,<AccLimitM>,0,0,0` | `configureBaseSurveyIn()` | Start survey-in average | `<AccLimit>` is **meters**. Quectel default **15** starts `<Obs>` on DA. `0` is not usable; `1.5`/`2`/`8` left Obs at 0. `MinDur` is **fix count** (seconds at 1 Hz). ECEF must be 0,0,0 in mode 1. **Does not take effect** until SAVEPAR + **PAIR023**. |
+| `PQTMCFGSVIN,R` | `querySurveyIn()` / `getSurveyInConfig()` | `OK,<Mode>,<MinDur>,<AccLimit>,X,Y,Z` | Mode 1 = survey-in, 2 = fixed ECEF. Matching Mode/MinDur/AccLimit means **adopt** the live run — do not write CFGSVIN or PAIR023 or you zero Obs. |
+| `PQTMCFGSVIN,W,2,0,0,X,Y,Z` | `setFixedEcef()` | Lock ARP as fixed base | Use after Valid=2, not at survey start. |
+| `PQTMSAVEPAR` | `saveConfig()` | Write working config to flash | Necessary but **not sufficient** for CFGSVIN on DA. |
+| `PAIR023` | `rebootModule()` | Full **module** reboot | This is what makes CFGSVIN start counting Obs. UART goes silent for a few seconds. |
+| `PAIR003` / `PAIR002` | (avoid for survey-in) | GNSS engine sleep / wake | **Not** a module reboot. Valid stayed 1 and Obs stayed 0 on DA. |
+| `PQTMHOT` / `PQTMWARM` / `PQTMCOLD` | `hotStart()` / `warmStart()` / `coldStart()` | GNSS engine restart | Also not PAIR023. Fine for rover warm start; will not apply saved CFGSVIN the way PAIR023 does. |
+| `PAIR432,1` | `enableRTCM(true)` | MSM7 observations | Base mission stream. Stays at the nav epoch (1 Hz). Do not slow this to “save UART”. |
+| `PAIR434,1` | `enableRTCM(true)` | RTCM 1005 ARP | Goes with MSM7. Rovers need the ARP. |
+| `PAIR432,-1` then `PAIR434,0` | `enableRTCM(false)` | Disable RTCM | **`PAIR432,0` is MSM4, not off.** |
+| `PQTMCFGMSGRATE,W,<name>,<Rate>[,Ver]` | `setMessageRate()` | Sentence on/off/interval | See RATE table. GSV is the bulky NMEA item (many sentences per epoch). |
+| `PQTMCFGFIXRATE,W,<ms>` | `setFixRateMs()` | Navigation epoch | Rover GIS: 200 ms = 5 Hz GGA/RMC. Base examples leave 1000 ms. RATE divisors scale with this. |
+| `PQTMCFGFIXRATE,R` | `getFixRateMs()` | Read epoch | |
+| `PQTMVERNO` | `queryVersion()` | Firmware string | Sanity that RX is alive. |
+| `PQTMPVT` / `PQTMVEL` / `PQTMDOP` / `PQTMSTD` | rover profile, then often RATE 0 | Quectel binary-ish text diagnostics | GIS tools want NMEA GGA/RMC, not these. Rover examples **disable** them after the profile so UART stays on corrections + GIS sentences. |
+
+### Sentences from the module
+
+| Sentence | Typical use | Base schedule | Rover GIS schedule |
+| --- | --- | --- | --- |
+| `$--GGA` | Position (lat/lon/alt, fix quality) | RATE 1 (1 s) **status** | RATE 1 (every epoch) **mission out** |
+| `$--RMC` | Time and date, course | RATE 1 (1 s) **status** | RATE 1 (every epoch) **mission out** |
+| `$--VTG` | Speed / track | off unless you add it | RATE 1 (every epoch) for GIS |
+| `$--GST` | Error ellipse / RMS | RATE 5 (5 s) | ~1 Hz (`RATE = 1000/fixMs`) |
+| `$--GSA` | DOP, sats used | RATE 5 | ~1 Hz |
+| `$--GSV` | Sats in view (many lines) | RATE 10 (10 s) | ~10 s (`RATE = 10000/fixMs`) |
+| `$--ZDA` | UTC date/time | unused | ~1 Hz |
+| `$PQTMEPE` | Estimated position error | RATE 5 | unused (GIS uses GST) |
+| `$PQTMSVINSTATUS` | Survey-in engine | RATE 10 | unused |
+| RTCM MSM7 (`1077`/`1087`/`1097`/`1127`…) | Observations | 1 Hz **mission** | **input** (write raw to GNSS) |
+| RTCM 1005 | Base ARP | 1 Hz **mission** | **input** |
+
+`$PQTMSVINSTATUS` fields used in practice (after MsgVer, TOW): **Valid**, **Obs**, **CfgDur**, MeanX/Y/Z, **MeanAcc**.
+
+| Valid | Meaning |
+| --- | --- |
+| 0 | Idle / no engine |
+| 1 | Survey-in running (watch Obs increase) |
+| 2 | Survey-in complete (then you may `survey_finalize`) |
+
+MeanAcc **`0.0000` is a placeholder until Obs > 0**. It is not “zero error” and must not complete a survey.
+
+### Which example sends or needs which
+
+`LC29H_bringUp()` is the common path. Reduced sketches send the same payloads by hand.
+
+| Example | Role | Commands **to** GNSS | Bytes **from** GNSS it cares about |
+| --- | --- | --- | --- |
+| SimpleBaseStation | Base survey | CFGSVIN (or adopt via `PQTMCFGSVIN,R`), SAVEPAR, PAIR023, PAIR432/434, base CFGMSGRATE table | `$PQTMSVINSTATUS`, GGA/RMC status; RTCM is generated but discarded (no second port) |
+| ESP32BaseStation | Base survey | Same | RTCM **out Serial2** (mission); NMEA optional on USB |
+| StreamBridge | Base survey | Same | RTCM (+ allowlisted NMEA) **out link UART** |
+| BaseSerialBridge | Base survey | Same | RTCM **out to rover UART** |
+| BasicConfiguration | Base survey (default) | Same, plus whatever you type (`help`, `msg_on`, `reboot`, …) | Printed NMEA / PAIR ACKs |
+| SimpleRover | Rover | CFGRCVRMODE rover, CFGFIXRATE, GIS CFGMSGRATE, SAVEPAR, PAIR023 if needed | **RTCM in** (ESP32 Serial2), **GGA+RMC out** USB |
+| RoverCorrectionBridge | Rover | Same | **RTCM in** from link, **GGA+RMC (+GST)** out |
+| ESP32BtRoamer | Rover | Same | **RTCM in** from phone, **GGA+RMC out** to phone |
+| ESP32UsbUartBridge | Passthrough | None by default (QGNSS owns config). Optional `LC29H_bringUp()` | Raw both ways on CH340 |
+| ReducedCommandConsole | Manual | You type `PQTMCFGSVIN…`, `PQTMSAVEPAR`, `PAIR023`, `PQTMCFGMSGRATE…` | Raw copy to USB |
+| ReducedSerialBridge | Passthrough | None | Raw USB ↔ GNSS |
+
+Do not PAIR023 over a live survey-in whose MinDur/AccLimit already match. That is the adopt path in `LC29H_bringUp()`.
 
 ## Known limits
 

@@ -8,6 +8,7 @@
 // 3) Status NMEA schedule: GGA/RMC 1 s, GST/GSA/EPE 5 s, GSV/SVIN 10 s.
 //    RTCM MSM7+1005 stay 1 Hz (mission). NMEA is status.
 // 4) Drain mixed NMEA+RTCM every loop. MeanAcc 0.0000 is not "complete".
+// Message payloads: this folder's README and library Readme "Module messages in practice".
 //
 // Minimum verified hardware:
 // - Arduino Mega 2560 class (AVR Uno/Nano class boards run out of RAM)

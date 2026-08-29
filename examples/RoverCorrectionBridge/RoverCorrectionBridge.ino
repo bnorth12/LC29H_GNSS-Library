@@ -4,6 +4,7 @@
 // Bench rover: ingest RTCM from the link UART, write it to GNSS, publish GGA
 // (position) and RMC (time) for GIS. GST ~1 Hz, GSV every 10 s.
 // Loop order: corrections first, then NMEA. Do not starve RTCM ingress.
+// Message payloads: this folder's README and library Readme "Module messages in practice".
 //
 // Minimum verified hardware:
 // - Arduino Mega 2560 class (AVR Uno/Nano class boards run out of RAM)

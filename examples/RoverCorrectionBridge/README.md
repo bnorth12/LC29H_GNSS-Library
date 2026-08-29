@@ -15,3 +15,10 @@ Pair with BaseSerialBridge. ESP32 GNSS Serial1 RX16/TX17, correction Serial2 RX1
 ## Config
 
 `LC29H_CFG_ROVER_PRINT_LOCAL_NMEA` and `LC29H_CFG_ROVER_FORWARD_NMEA_TO_LINK` in `lc29hconfig.h`. `LC29H_CFG_FIX_RATE_MS` sets the rover epoch.
+
+## Messages this sketch uses
+
+Same **to GNSS** rover GIS path as SimpleRover (`PQTMCFGRCVRMODE,W,1`, fix rate, GGA/RMC RATE 1, GSV ~10 s). [Module messages in practice](../../Readme.md#module-messages-in-practice).
+
+**Into GNSS:** raw RTCM from the link UART first every loop.  
+**From GNSS:** GGA (position) and RMC (time) for GIS; GST if you forward the allowlist.

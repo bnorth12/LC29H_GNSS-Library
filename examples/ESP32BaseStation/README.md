@@ -16,3 +16,9 @@ ESP32-S3-DevKitC-1 class, dual USB-C. Default GNSS UART1 RX18/TX17, RTCM UART2 R
 ## Config
 
 Edit `lc29hconfig.h` for clone-specific GPIO mapping and survey MinDur.
+
+## Messages this sketch uses
+
+Same **to GNSS** path as SimpleBaseStation (adopt or CFGSVIN+SAVEPAR+PAIR023, PAIR432/434, base CFGMSGRATE table). [Module messages in practice](../../Readme.md#module-messages-in-practice).
+
+**From GNSS:** RTCM MSM7+1005 **out Serial2** (mission). Optional GGA on USB. `$PQTMSVINSTATUS` at RATE 10 for Obs/MeanAcc.

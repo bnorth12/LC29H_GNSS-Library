@@ -19,3 +19,10 @@ GNSS on Serial2, pins from `lc29hconfig.h` (default RX16/TX17). Pair the phone t
 - TX (rover → phone NMEA) `6E400003-...`
 
 SW Maps and similar tools must support this NUS write/notify model.
+
+## Messages this sketch uses
+
+Same **to GNSS** rover GIS path as SimpleRover. [Module messages in practice](../../Readme.md#module-messages-in-practice).
+
+**Into GNSS:** RTCM/RTIP from the phone (SPP or BLE RX) — first in `loop()`.  
+**From GNSS:** GGA+RMC (and other GIS NMEA at the scheduled rates) to USB and/or the phone TX characteristic.

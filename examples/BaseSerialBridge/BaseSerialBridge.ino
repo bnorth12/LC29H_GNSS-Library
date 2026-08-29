@@ -4,6 +4,7 @@
 // Bench base pair: parse GNSS UART and forward RTCM to a rover on a second UART.
 // LC29H_bringUp() adopts a matching live SVIN or starts survey-in. RTCM stays 1 Hz.
 // Pump every loop; do not parse inside the pump callback.
+// Message payloads: this folder's README and library Readme "Module messages in practice".
 //
 // Minimum verified hardware:
 // - Arduino Mega 2560 class (AVR Uno/Nano class boards run out of RAM)

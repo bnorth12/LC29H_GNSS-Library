@@ -11,3 +11,7 @@ Use this to talk to QGNSS or a host tool through the board, or to confirm wiring
 ## Hardware
 
 Serial1 when present; otherwise SoftwareSerial RX4/TX3. 115200 8N1.
+
+## Messages this sketch uses
+
+None of its own. It copies bytes. Whatever QGNSS or a host sends (`PQTMCFG…`, `PAIR…`) and whatever the module emits (NMEA, RTCM) pass through. See [Module messages in practice](../../Readme.md#module-messages-in-practice) if you are typing those payloads on the host.

@@ -6,6 +6,7 @@
 //
 // ESP32: GNSS on Serial1, correction UART on Serial2. Ingest corrections first
 // every loop, then drain NMEA. AVR: NMEA only; use RoverCorrectionBridge for RTCM in.
+// Message payloads: this folder's README and library Readme "Module messages in practice".
 //
 // Minimum verified hardware:
 // - Arduino Mega 2560 class (AVR Uno/Nano class boards run out of RAM)

@@ -23,4 +23,4 @@ Sketches stay smaller than a full NTRIP/Wi-Fi app. They show how to talk to the 
 | [ReducedCommandConsole](ReducedCommandConsole/) | Tiny SRAM typed payloads |
 | [ReducedSerialBridge](ReducedSerialBridge/) | Tiny SRAM raw USB↔GNSS |
 
-Each folder has its own README that matches the comments at the top of the sketch.
+Each folder has its own README that matches the comments at the top of the sketch. What the PQTM/PAIR/NMEA/RTCM payloads actually do (the part the Quectel PDF leaves thin) is in the library Readme: **[Module messages in practice](../Readme.md#module-messages-in-practice)**.

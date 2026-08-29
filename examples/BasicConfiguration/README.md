@@ -16,3 +16,9 @@ Mega-class AVR or ESP32 Serial1 RX16/TX17.
 ## Config
 
 This folder’s `lc29hconfig.h`. Switch `LC29H_ROLE` to try rover or static-base profiles through the same sketch.
+
+## Messages this sketch uses
+
+Same bring-up as SimpleBaseStation (or rover/static if you change `LC29H_ROLE`). See [Module messages in practice](../../Readme.md#module-messages-in-practice).
+
+Serial Monitor `help` can send extra payloads (`base_survey`, `msg_on`, `reboot` = PAIR023, `survey_finalize` only after Valid=2). Those share the GNSS UART with the drain.

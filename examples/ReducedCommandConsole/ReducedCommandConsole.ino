@@ -3,6 +3,7 @@
 // Tiny SRAM console: no LC29H_GNSS object. Type payloads to configure the module.
 // Survey-in on DA: AccLimit 15, SAVEPAR, PAIR023. Rover GIS: keep GGA/RMC on;
 // send PQTMCFGMSGRATE to slow GSV. Drain GNSS UART every loop.
+// Message payloads: this folder's README and library Readme "Module messages in practice".
 
 #if defined(ARDUINO_ARCH_AVR) && !defined(HAVE_HWSERIAL1)
 #include <SoftwareSerial.h>

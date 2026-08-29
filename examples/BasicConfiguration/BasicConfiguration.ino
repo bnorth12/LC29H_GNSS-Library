@@ -5,6 +5,7 @@
 // Same DA survey rules as SimpleBaseStation (adopt live SVIN, AccLimit 15,
 // status NMEA schedule, PAIR023 only when starting a new survey).
 // survey_finalize only after $PQTMSVINSTATUS Valid=2.
+// Message payloads: this folder's README and library Readme "Module messages in practice".
 //
 // Minimum verified hardware:
 // - Arduino Mega 2560 class (AVR Uno/Nano class boards run out of RAM)

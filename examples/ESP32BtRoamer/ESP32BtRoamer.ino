@@ -5,6 +5,7 @@
 // Phone-app rover: ingest RTCM/RTIP over Bluetooth, publish GGA (position)
 // and RMC (time) back to the app for GIS. Loop: corrections first, then NMEA.
 // SPP on classic ESP32, BLE NUS on ESP32-S3.
+// Message payloads: this folder's README and library Readme "Module messages in practice".
 //
 // Minimum verified hardware:
 // - ESP32 with Bluetooth support (SPP preferred, BLE fallback)

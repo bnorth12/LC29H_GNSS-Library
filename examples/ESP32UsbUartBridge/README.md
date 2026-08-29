@@ -16,3 +16,9 @@ ESP32-S3 dual USB-C. Keep GPIO44/43 free (CH340 U0RXD/U0TXD).
 ## Config
 
 Toggles in this folder’s `lc29hconfig.h`: `APPLY_PROJECT_CONFIG`, `STRICT_OWNERSHIP`, `STARTUP_SANITY_CHECKS`, bridge baud.
+
+## Messages this sketch uses
+
+**Default:** none. The sketch is a raw UART pipe. QGNSS on the CH340 sends whatever PQTM/PAIR it wants.
+
+If you set `APPLY_PROJECT_CONFIG`, `LC29H_bringUp()` sends the survey-base or rover set described in [Module messages in practice](../../Readme.md#module-messages-in-practice). That fights QGNSS if both are connected.

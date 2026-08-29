@@ -6,6 +6,7 @@
 // LC29H_bringUp() adopts a matching live survey-in, or writes CFGSVIN with
 // AccLimit 15 m, SAVEPAR, and PAIR023. Status NMEA is scheduled; RTCM stays 1 Hz.
 // Pump Serial1 every loop. Print complete NMEA; do not parse in the callback.
+// Message payloads: this folder's README and library Readme "Module messages in practice".
 //
 // Minimum verified hardware:
 // - ESP32-S3 target (compiled with esp32:esp32:esp32s3)
