@@ -40,6 +40,13 @@ Raw-data design note:
 - It can be used for configuration/control while raw GNSS/RTCM bytes are forwarded upstream.
 - Parsing can remain in dedicated libraries/apps (for example TinyGPS++, RTK parsers, SW Maps feeders, NTRIP bridge apps).
 
+## Version 0.2.6
+
+LC29H(DA) message-rate and survey-in notes:
+
+- `setMessageRate` omits `<MsgVer>` for standard NMEA (`GGA`, `GST`, …). `$PQTM` names still send MsgVer (`1`, or `2` for `PQTMEPE`).
+- `configureBaseSurveyIn` still only writes `PQTMCFGRCVRMODE,W,2` and `PQTMCFGSVIN,W,1,…`. On DA those take effect after `PQTMSAVEPAR` and a GNSS subsystem restart (`PAIR003` / `PAIR002`). The helper does not save or restart.
+
 ## Version 0.2.5
 
 Command payloads aligned with Quectel LC29H(BS) Protocol Specification v1.1:

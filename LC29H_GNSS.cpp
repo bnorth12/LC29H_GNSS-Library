@@ -844,7 +844,11 @@ bool LC29H_GNSS::configureBaseStation() {
 }
 
 bool LC29H_GNSS::configureBaseSurveyIn(uint32_t minTimeSec, float minStdDevM) {
-    // Quectel LC29H(BS) spec: <MinDur> seconds, <3D_AccLimit> meters (0 = no limit, default 15.0).
+    // Writes PQTMCFGRCVRMODE,W,2 then PQTMCFGSVIN,W,1,<MinDur>,<3D_AccLimit>,0,0,0.
+    // <3D_AccLimit> is meters (0 = no limit, default 15.0). Mode=1 requires ECEF 0,0,0.
+    // LC29H(DA): these two commands take effect only after PQTMSAVEPAR and a GNSS subsystem
+    // restart (PAIR003 off, >2 s, PAIR002 on — not PQTMSRR, which is AA/AL-only). This helper
+    // does not save or restart; the caller must.
     String payload = "PQTMCFGSVIN,W,1,";
     payload += String(minTimeSec);
     payload += ",";
@@ -988,19 +992,16 @@ bool LC29H_GNSS::queryReceiverMode() {
 }
 
 bool LC29H_GNSS::setMessageRate(const String& messageName, uint8_t port, uint8_t rate) {
-    // BS spec: $PQTMCFGMSGRATE,W,<MsgName>,<Rate>,<MsgVer>. MsgVer is 1 for PQTMSVINSTATUS
-    // (example W,PQTMSVINSTATUS,1,1) and 2 for PQTMEPE. Port is unused on this write form.
-    uint8_t msgVer = 1;
-    if (messageName.endsWith("PQTMEPE")) {
-        msgVer = 2;
-    }
-
+    // $PQTMCFGMSGRATE,W,<MsgName>,<Rate>[,<MsgVer>]. MsgVer is required for $PQTM names
+    // (1, or 2 for PQTMEPE) and must be omitted for standard NMEA on LC29H(DA).
     String payload = "PQTMCFGMSGRATE,W,";
     payload += messageName;
     payload += ",";
     payload += String(rate);
-    payload += ",";
-    payload += String(msgVer);
+    if (messageName.indexOf("PQTM") >= 0) {
+        payload += ",";
+        payload += (messageName.endsWith("PQTMEPE") ? "2" : "1");
+    }
 
     (void)port;
 
