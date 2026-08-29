@@ -1,11 +1,12 @@
-LC29H_GNSS`tKEYWORD1
+LC29H_GNSS	KEYWORD1
+LC29H_UartPump	KEYWORD1
+Pump	KEYWORD1
 ErrorCode`tKEYWORD2
 EventType`tKEYWORD2
 RecoveryPolicy`tKEYWORD2
 PairAck`tKEYWORD2
 BridgeMode`tKEYWORD2
 LocalDebugOutputMode`tKEYWORD2
-
 queryVersion`tKEYWORD2
 queryQVersion`tKEYWORD2
 queryUniqueId`tKEYWORD2
@@ -76,6 +77,9 @@ ingestRawAvailable`tKEYWORD2
 forwardAvailable`tKEYWORD2
 forwardNmeaLine`tKEYWORD2
 forwardBridgeAvailable`tKEYWORD2
+hasValidNmeaChecksum	KEYWORD2
+baseStationPriorities	KEYWORD2
+roverGisPriorities	KEYWORD2
 isNmeaAllowedByFilter`tKEYWORD2
 tryParsePairAck`tKEYWORD2
 pairAckResultName`tKEYWORD2

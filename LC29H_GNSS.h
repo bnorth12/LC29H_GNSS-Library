@@ -572,7 +572,8 @@ public:
     static uint8_t nmeaChecksum(const String& payloadWithoutDollarOrChecksum);
     // True if line is $...*HH or !...*HH and the two hex digits match the XOR. Use on RX
     // before parsing; the UART bridge already drops failures, apps should still check
-    // any other NMEA path.
+    // any other NMEA path. The const char* overload does not allocate (UART drain path).
+    static bool hasValidNmeaChecksum(const char* line);
     static bool hasValidNmeaChecksum(const String& line);
     static bool isNmeaSentence(const String& line);
 

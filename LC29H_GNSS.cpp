@@ -1,5 +1,7 @@
 #include "LC29H_GNSS.h"
 
+#include <string.h>
+
 namespace {
 // Lightweight CSV splitter for command/response parsing.
 // We intentionally keep this local and allocation-light for MCU targets.
@@ -2150,21 +2152,32 @@ uint8_t LC29H_GNSS::nmeaChecksum(const String& payloadWithoutDollarOrChecksum) {
     return sum;
 }
 
-bool LC29H_GNSS::hasValidNmeaChecksum(const String& line) {
-    String trimmed = line;
-    trimmed.trim();
-    if (trimmed.length() < 5 || (trimmed[0] != '$' && trimmed[0] != '!')) {
+bool LC29H_GNSS::hasValidNmeaChecksum(const char* line) {
+    if (line == nullptr) {
+        return false;
+    }
+    while (*line == ' ' || *line == '\t' || *line == '\r' || *line == '\n') {
+        ++line;
+    }
+    if ((line[0] != '$' && line[0] != '!') || line[1] == '\0') {
         return false;
     }
 
-    const int star = trimmed.indexOf('*');
-    if (star <= 1 || star + 3 != static_cast<int>(trimmed.length())) {
+    const char* star = strchr(line, '*');
+    if (star == nullptr || star <= line + 1 || star[1] == '\0' || star[2] == '\0') {
+        return false;
+    }
+    const char* rest = star + 3;
+    while (*rest == ' ' || *rest == '\t' || *rest == '\r' || *rest == '\n') {
+        ++rest;
+    }
+    if (*rest != '\0') {
         return false;
     }
 
     uint8_t checksum = 0;
-    for (int index = 1; index < star; ++index) {
-        checksum ^= static_cast<uint8_t>(trimmed.charAt(index));
+    for (const char* p = line + 1; p < star; ++p) {
+        checksum ^= static_cast<uint8_t>(*p);
     }
 
     auto hexValue = [](char value) -> int {
@@ -2180,9 +2193,13 @@ bool LC29H_GNSS::hasValidNmeaChecksum(const String& line) {
         return -1;
     };
 
-    const int high = hexValue(trimmed.charAt(star + 1));
-    const int low = hexValue(trimmed.charAt(star + 2));
+    const int high = hexValue(star[1]);
+    const int low = hexValue(star[2]);
     return high >= 0 && low >= 0 && checksum == static_cast<uint8_t>((high << 4) | low);
+}
+
+bool LC29H_GNSS::hasValidNmeaChecksum(const String& line) {
+    return hasValidNmeaChecksum(line.c_str());
 }
 
 bool LC29H_GNSS::isNmeaSentence(const String& line) {

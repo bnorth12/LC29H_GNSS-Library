@@ -47,6 +47,8 @@ Initial library skeleton is now implemented with:
 - Structured error model with last-error context and optional host callback events
 - Serial Monitor command processor for rapid bench testing
 
+- `LC29H_UartPump`: drain ring (overwrite-oldest), RTCM FIFO, latest-wins NMEA mailboxes, GSV group aging. Priority 0/1/2 is a table the sketch fills (`baseStationPriorities()` / `roverGisPriorities()`).
+
 This starter intentionally focuses on reliable command transport and reproducible setup flow first.
 
 What each PQTM/PAIR/NMEA/RTCM item does in a base or rover sketch (RATE, AccLimit, PAIR023 vs PAIR003, which example uses which) is in **[Module messages in practice](#module-messages-in-practice)**.
@@ -56,6 +58,21 @@ Raw-data design note:
 - This library is intentionally compatible with higher-layer NMEA/RTK stacks.
 - It can be used for configuration/control while raw GNSS/RTCM bytes are forwarded upstream.
 - Parsing can remain in dedicated libraries/apps (for example TinyGPS++, RTK parsers, SW Maps feeders, NTRIP bridge apps).
+
+## Version 0.2.12
+
+UART drain-then-mailbox pump for mixed NMEA+RTCM (the old `forwardBridgeAvailable` path still exists):
+
+- `LC29H_UartPump::Pump` copies UART bytes into an 8 kB overwrite-oldest ring (`drain`, 4 ms budget), then frames off that copy (`frame`). The UART driver is emptied without XOR/`String`/handlers on the read path.
+- RTCM goes to a 6×1100 FIFO (drop-oldest, counted as `rtcmDrops`). Status NMEA goes to latest-wins mailboxes (RMC/GGA/SVIN/GST/GSA/EPE). GSV is one group slot (16 lines, all talkers in one epoch). A new epoch is a talker restart (`$GPGSV,...,1` after GPGSV already collected), not each constellation's first sentence. An unread epoch overwrite ages GSV after `gsvSkipLimit` (default 2, ~40 s at RATE 20). Aged GSV is delivered after RTCM and needed status, never as level 0.
+- `hasValidNmeaChecksum(const char*)` does not allocate. Use it on the UART path. The `String` overload calls it.
+- Sketch policy lives in `PriorityTable` (`baseStationPriorities`: RTCM=0, RMC/GGA/SVIN=1, GSV/GSA/GST/EPE=2). Call `drain` every loop tick; `processRtcm` then `processNmea` so crash breadcrumbs can split the phases.
+
+Failure counters the host should log: `drainOverruns` (ring lost oldest bytes), `drainBudgetHits` (4 ms drain left UART bytes behind), `rtcmDrops`, `mailboxOverwrites`, `gsvDueCount` / `gsvSkipped`, `checksumFails`, `resyncs`.
+
+## Version 0.2.11
+
+Public `LC29H_GNSS::hasValidNmeaChecksum` so applications do not duplicate NMEA XOR/`*HH` on RX.
 
 ## Version 0.2.9
 
@@ -191,7 +208,13 @@ bytes_arriving_between_pumps = ingress_bytes_per_s * pump_interval_s
 
 This must stay below the UART RX software buffer (plus the small HW FIFO, 128 bytes on ESP32-S3) or the driver reports `UART_FIFO_OVF` / `UART_BUFFER_FULL` and drops data.
 
-`forwardBridgeAvailable`:
+For a mixed RTCM+NMEA sketch on ESP32, prefer `LC29H_UartPump` over `forwardBridgeAvailable`:
+
+1. `drain()` every loop — `available()` + `read()` only, 4 ms cap, 8 kB overwrite-oldest ring. `HardwareSerial::setTimeout(0)` so a blocked read cannot stall 1 s.
+2. `frame()` XOR-checks NMEA and CRC-sizes RTCM on the ring copy, not on the UART driver.
+3. `processRtcm` then `processNmea` with a short budget. RTCM is FIFO; status is latest-wins. GSV ages after two missed groups.
+
+`forwardBridgeAvailable` remains for simple bridges. It:
 
 - Stops after `maxBytes` **or** `kMaxBridgePumpMs` (15 ms), whichever comes first.
 - Leftover bytes stay in the Stream; the **caller must invoke the pump again**.
@@ -205,6 +228,16 @@ bytes_arriving_between_pumps > bytes_drained_per_pump  →  overflow
 
 Do not do heavy work inside that callback. Queue complete NMEA lines and parse after the pump returns.
 
+Empty `available()` while TX (commands) still works is an ESP32 RX-path stall or a module that stopped transmitting, not a CFGMSGRATE math error. Distinguish:
+
+- `fifoOvf` / `bufferFull` climbing → UART driver not drained fast enough (call `drain` every loop)
+- `drainOverruns` climbing → 8 kB ring lost oldest bytes; loop blocked elsewhere or ingress faster than frame+process
+- `drainBudgetHits` climbing → 4 ms drain left bytes in the driver; next tick must catch up
+- `rtcmDrops` climbing → RTCM FIFO (6 frames) overflow; NTRIP/process not keeping up
+- `mailboxOverwrites` climbing → status replaced unread (expected for 1 Hz RMC if process is slow; not data loss of truth, latest-wins)
+- `gsvDueCount` climbing → sky view skipped `gsvSkipLimit` groups (~40 s) and was promoted after RTCM+needed
+- `available() == 0`, no overflow, no command replies → FIFO never filled (RX pin/driver, or module TX silent)
+
 ### How to stay inside the budget
 
 1. **Lower RATE on bulky sentences** (`setMessageRate`). GSV at RATE 10 (0.1 Hz) cuts ~1 kB/s of NMEA. `$PQTMSVINSTATUS` does not need 1 Hz for a 12 h survey-in.
@@ -212,11 +245,6 @@ Do not do heavy work inside that callback. Queue complete NMEA lines and parse a
 3. **Pump often.** Interval × ingress must fit in the RX buffer. At 3 kB/s ingress, a 200 ms gap is already ~600 bytes; a 1 s gap overflows a 1 kB buffer.
 4. **Cap callback work.** 15 ms is a safety cap against stack/heap collapse, not a license to parse a full epoch on the UART stack.
 5. **One reader.** Do not call `readLine` / `query*` from a second path while the bridge pump owns the Stream, or you steal/split frames.
-
-Empty `available()` while TX (commands) still works is an ESP32 RX-path stall or a module that stopped transmitting, not a CFGMSGRATE math error. Distinguish:
-
-- `fifoOvf` / `bufferFull` climbing → sketch not draining fast enough
-- `available() == 0`, no overflow, no command replies → FIFO never filled (RX pin/driver, or module TX silent)
 
 ## Module messages in practice
 
