@@ -81,6 +81,101 @@ Bridge parser hardening (mixed NMEA+RTCM on one UART):
 - `readLine` uses the same 256-character cap so a blocking query cannot swallow an RTCM burst into
   an unbounded `String`.
 
+## UART throughput budget
+
+The GNSS UART is a **single shared pipe**. Mixed NMEA + RTCM (especially MSM7 plus multi-constellation GSV) will overrun a typical ESP32 RX buffer long before it saturates the baud rate, if the sketch does not drain bytes faster than they arrive.
+
+Treat this as a real-time budget, not as “the parser will keep up.”
+
+### Link capacity
+
+UART 8N1 is 10 bit times per byte (start + 8 data + stop).
+
+```
+uart_bytes_per_s = baud / 10
+```
+
+| Baud   | Max payload bytes/s |
+|--------|---------------------|
+| 9600   | 960                 |
+| 38400  | 3840                |
+| 57600  | 5760                |
+| 115200 | 11520               |
+| 230400 | 23040               |
+
+If `ingress_bytes_per_s` exceeds this table, bytes are lost on the wire. In practice ESP32 software RX buffers (256 default, 1024 in many sketches) overflow first.
+
+### Ingress (what the module emits)
+
+For each enabled sentence or RTCM message:
+
+```
+ingress_i = typical_size_i * rate_hz_i
+ingress   = sum(ingress_i)
+```
+
+`PQTMCFGMSGRATE` `<Rate>` is **every N navigation epochs**. At a 1 Hz fix (`PQTMCFGFIXRATE` 1000 ms):
+
+| Rate | Output interval |
+|------|-----------------|
+| 1    | 1 s             |
+| 5    | 5 s             |
+| 10   | 10 s            |
+
+Typical sizes (order-of-magnitude, enough for budgeting):
+
+| Output | Bytes per epoch (approx.) | Notes |
+|--------|---------------------------|--------|
+| GGA, RMC, GST, PQTMEPE | 70–90 each | One sentence each |
+| GSA | ~70 × talkers | GPS+GLO+GAL+BDS often 4–5 sentences |
+| GSV | **800–1200** | Many sentences, all constellations; the bulky NMEA item |
+| PQTMSVINSTATUS | ~100 | Survey-in status |
+| RTCM 1005 | ~25 | ARP |
+| RTCM MSM7 (multi-GNSS) | **500–1500** | Dominates when base mode RTCM is on |
+
+Worked example, **everything at 1 Hz** on a base with MSM7:
+
+- NMEA: GGA+RMC+GSA+GSV+GST+SVIN+EPE ≈ 0.08+0.08+0.35+1.0+0.08+0.10+0.07 ≈ **1.8 kB/s**
+- RTCM MSM7+1005 ≈ **0.8–1.5 kB/s**
+- Total ≈ **2.6–3.3 kB/s**
+
+That is only ~25–30% of 115200 baud, so the **baud rate is not the bottleneck**. The bottleneck is draining a 1 kB buffer between loop ticks.
+
+### Buffer and pump constraints
+
+```
+bytes_arriving_between_pumps = ingress_bytes_per_s * pump_interval_s
+```
+
+This must stay below the UART RX software buffer (plus the small HW FIFO, 128 bytes on ESP32-S3) or the driver reports `UART_FIFO_OVF` / `UART_BUFFER_FULL` and drops data.
+
+`forwardBridgeAvailable`:
+
+- Stops after `maxBytes` **or** `kMaxBridgePumpMs` (15 ms), whichever comes first.
+- Leftover bytes stay in the Stream; the **caller must invoke the pump again**.
+- Bytes drained per call ≈ `min(maxBytes, time_in_callback_limited_read)`.
+
+**Processing is part of the budget.** If the `localNmeaOut` callback parses `String`s, walks survey history, or writes LittleFS, drain rate collapses (hundreds of bytes in 15 ms instead of a full `maxBytes`). Then:
+
+```
+bytes_arriving_between_pumps > bytes_drained_per_pump  →  overflow
+```
+
+Do not do heavy work inside that callback. Queue complete NMEA lines and parse after the pump returns.
+
+### How to stay inside the budget
+
+1. **Lower RATE on bulky sentences** (`setMessageRate`). GSV at RATE 10 (0.1 Hz) cuts ~1 kB/s of NMEA. `$PQTMSVINSTATUS` does not need 1 Hz for a 12 h survey-in.
+2. **Keep time/position sentences faster** (GGA/RMC at RATE 1) if the app needs 1 Hz time.
+3. **Pump often.** Interval × ingress must fit in the RX buffer. At 3 kB/s ingress, a 200 ms gap is already ~600 bytes; a 1 s gap overflows a 1 kB buffer.
+4. **Cap callback work.** 15 ms is a safety cap against stack/heap collapse, not a license to parse a full epoch on the UART stack.
+5. **One reader.** Do not call `readLine` / `query*` from a second path while the bridge pump owns the Stream, or you steal/split frames.
+
+Empty `available()` while TX (commands) still works is an ESP32 RX-path stall or a module that stopped transmitting, not a CFGMSGRATE math error. Distinguish:
+
+- `fifoOvf` / `bufferFull` climbing → sketch not draining fast enough
+- `available() == 0`, no overflow, no command replies → FIFO never filled (RX pin/driver, or module TX silent)
+
 ## Known limits
 
 Board-driven default sizing:
