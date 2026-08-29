@@ -12,7 +12,7 @@ Smallest rover sketch. Highest priorities: **accept RTCM corrections** and **pub
 ## Hardware
 
 - ESP32: GNSS Serial1 RX16/TX17, corrections Serial2 RX5/TX4.
-- Mega-class AVR: GNSS SoftwareSerial RX4/TX3.
+- Mega-class AVR: GNSS SoftwareSerial RX4/TX3. On Mega the Serial `help` command loop is compiled out so the sketch fits in 8 kB SRAM.
 
 ## Config
 

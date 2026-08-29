@@ -1,5 +1,9 @@
 #pragma once
 
+#if !defined(ARDUINO_ARCH_ESP32)
+#error LC29H_UartPump needs ESP32 SRAM for the drain ring. AVR sketches should keep using forwardBridgeAvailable.
+#else
+
 #include <Arduino.h>
 #include <string.h>
 
@@ -169,3 +173,5 @@ private:
 };
 
 }  // namespace LC29H_UartPump
+
+#endif  // ARDUINO_ARCH_ESP32

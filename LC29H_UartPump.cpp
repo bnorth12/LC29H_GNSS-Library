@@ -1,3 +1,5 @@
+#if defined(ARDUINO_ARCH_ESP32)
+
 #include "LC29H_UartPump.h"
 
 namespace LC29H_UartPump {
@@ -404,3 +406,5 @@ uint8_t Pump::process(uint32_t budgetMs, RtcmHandler rtcm, NmeaHandler nmea, voi
 }
 
 }  // namespace LC29H_UartPump
+
+#endif  // ARDUINO_ARCH_ESP32

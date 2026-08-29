@@ -13,7 +13,7 @@ Smallest survey-base sketch. It configures the LC29H as a survey-in base and dra
 
 ## Hardware
 
-- Mega-class AVR, or ESP32 Serial1 (RX16/TX17). Uno/Nano run out of RAM.
+- Mega-class AVR, or ESP32 Serial1 (RX16/TX17). Uno/Nano run out of RAM. On Mega the Serial `help` command loop is compiled out so the sketch fits in 8 kB SRAM.
 - GNSS UART 115200 8N1.
 
 ## Config

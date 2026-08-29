@@ -59,6 +59,10 @@ Raw-data design note:
 - It can be used for configuration/control while raw GNSS/RTCM bytes are forwarded upstream.
 - Parsing can remain in dedicated libraries/apps (for example TinyGPS++, RTK parsers, SW Maps feeders, NTRIP bridge apps).
 
+## Version 0.2.13
+
+CI: SimpleBaseStation and SimpleRover now skip `processSerialCommands()` on Mega, same as the other full AVR examples (help strings were ~11 kB of `.data`). `LC29H_UartPump` stays ESP32-only so the 8 kB drain ring is not built for AVR.
+
 ## Version 0.2.12
 
 UART drain-then-mailbox pump for mixed NMEA+RTCM (the old `forwardBridgeAvailable` path still exists):
