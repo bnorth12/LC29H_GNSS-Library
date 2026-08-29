@@ -107,6 +107,7 @@ void setup() {
     Serial.println("Native USB Serial is the console; the CH340-backed USB-C exposes Serial0 for raw GNSS/QGNSS traffic.");
     Serial.println("Connect the GNSS module to Serial1 pins and use the second USB-C port as the host-side UART bridge.");
     Serial.println("Expected workflow: run either QGNSS on CH340 or Arduino Serial console commands, not both at once.");
+    Serial.println("One GNSS UART reader. Survey-in on DA needs AccLimit 15, SAVEPAR, then PAIR023.");
     Serial.println("Quick test: open this console on native USB, then open QGNSS on the CH340 COM port at the configured bridge baud.");
     Serial.println("Bridge allowlist defaults: GGA on, GST off, RMC off, PQTM off.");
     Serial.println("Use help bridge and help registry in the library console for runtime guidance.");
@@ -136,11 +137,13 @@ void setup() {
     LC29H_applyProjectConfig(gnss, profileResult);
     Serial.print("Project config status=");
     Serial.println(profileStatusName(profileResult.status));
-    if (profileResult.powerCycleRecommended) {
-        Serial.println("Power cycle recommended after configuration.");
-    }
     if (profileResult.status != LC29H_GNSS::ProfileStatus::Success) {
         return;
+    }
+    if (profileResult.powerCycleRecommended) {
+        Serial.println("Rebooting module (PAIR023). PAIR003/PAIR002 sleep is not enough.");
+        gnss.rebootModule();
+        delay(3000);
     }
 #else
     Serial.println("Project config loaded; auto-apply is disabled in lc29hconfig.h for bridge-first bring-up.");

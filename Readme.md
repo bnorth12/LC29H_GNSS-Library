@@ -40,12 +40,21 @@ Raw-data design note:
 - It can be used for configuration/control while raw GNSS/RTCM bytes are forwarded upstream.
 - Parsing can remain in dedicated libraries/apps (for example TinyGPS++, RTK parsers, SW Maps feeders, NTRIP bridge apps).
 
+## Version 0.2.7
+
+Survey-in and example bring-up aligned with LC29H(DA) field use:
+
+- Default AccLimit for `configureBaseSurveyIn`, `applyBaseSurveyPreset`, and `applySurveyBaseProfile` is **15 m**. Values like 0 / 1.5 / 2 left `<Obs>` at 0 on DA.
+- New `rebootModule()` sends `PAIR023` (full module reboot). DA/EA need `PQTMSAVEPAR` then `PAIR023` for CFGSVIN to take effect; `PAIR003`/`PAIR002` GNSS sleep is not enough.
+- Console commands: `reboot`, and `base_survey` / `profile_base_survey` default AccLimit 15.
+- Examples stay simpler than a full NTRIP app, but they now: AccLimit 15, do not auto-finalize survey-in on startup, lower GSV/`PQTMSVINSTATUS` to RATE 10, pump the UART every loop, and keep RTCM at 1 Hz.
+
 ## Version 0.2.6
 
 LC29H(DA) message-rate and survey-in notes:
 
 - `setMessageRate` omits `<MsgVer>` for standard NMEA (`GGA`, `GST`, …). `$PQTM` names still send MsgVer (`1`, or `2` for `PQTMEPE`).
-- `configureBaseSurveyIn` still only writes `PQTMCFGRCVRMODE,W,2` and `PQTMCFGSVIN,W,1,…`. On DA those take effect after `PQTMSAVEPAR` and a GNSS subsystem restart (`PAIR003` / `PAIR002`). The helper does not save or restart.
+- `configureBaseSurveyIn` still only writes `PQTMCFGRCVRMODE,W,2` and `PQTMCFGSVIN,W,1,…`. On DA/EA those take effect after `PQTMSAVEPAR` and **`rebootModule()` / `PAIR023`** (full module reboot). `PAIR003`/`PAIR002` GNSS sleep is not enough. Default AccLimit is **15 m**. The helper does not save or restart.
 
 ## Version 0.2.5
 
@@ -84,6 +93,8 @@ Bridge parser hardening (mixed NMEA+RTCM on one UART):
 ## UART throughput budget
 
 The GNSS UART is a **single shared pipe**. Mixed NMEA + RTCM (especially MSM7 plus multi-constellation GSV) will overrun a typical ESP32 RX buffer long before it saturates the baud rate, if the sketch does not drain bytes faster than they arrive.
+
+For a base station that publishes corrections, **RTCM at the nav epoch (typically 1 Hz MSM + 1005) is the mission stream**. NMEA is status. If the UART budget is exceeded, lower NMEA `PQTMCFGMSGRATE` (GSV first). Do not slow or drop RTCM to make the dashboard prettier.
 
 Treat this as a real-time budget, not as “the parser will keep up.”
 
@@ -244,7 +255,7 @@ Example config behavior:
 - SimpleRover: examples/SimpleRover/SimpleRover.ino
   - Applies UAS rover profile with save + verify.
 - SimpleBaseStation: examples/SimpleBaseStation/SimpleBaseStation.ino
-  - Applies survey-base profile with RTCM + save + verify.
+  - Applies survey-base profile (AccLimit 15 m) + GSV/SVIN RATE 10 + SAVEPAR + PAIR023.
 - BasicConfiguration: examples/BasicConfiguration/BasicConfiguration.ino
   - Full reference/demo flow including project config and survey ECEF capture.
 - BaseSerialBridge: examples/BaseSerialBridge/BaseSerialBridge.ino
@@ -319,6 +330,7 @@ Bring-up steps:
 - StreamBridge: examples/StreamBridge/StreamBridge.ino
   - Demonstrates forwarding GNSS output to an upstream stream for caster/bridge use.
   - Uses the library bridge parser API (forwardBridgeAvailable) rather than sketch-local parsing logic.
+  - Pump every loop; do not parse inside the pump callback. RTCM at 1 Hz is the mission stream.
   - Bridge mode and NMEA allowlist are configurable from lc29hconfig.h.
 
 ## ESP32 base station example
@@ -329,6 +341,7 @@ Bring-up steps:
   - UART GPIOs are defined in the example-local lc29hconfig.h, which is the source of truth for clone-specific pin routing.
   - The default example avoids GPIO19/GPIO20 because those are commonly used by ESP32-S3 native USB.
   - Uses the same project config flow as the generic examples, but removes non-ESP32 fallback code.
+  - After the survey profile: GSV/SVIN RATE 10, SAVEPAR, PAIR023.
   - Intended as a hardware-specific starting point, not a full Wi-Fi/NTRIP application.
 
 ## ESP32 USB-UART bridge example
@@ -538,7 +551,10 @@ General and setup:
   - Purpose: restore receiver defaults.
 - save
   - Syntax: save
-  - Purpose: save current configuration to receiver flash.
+  - Purpose: save current configuration to receiver flash (PQTMSAVEPAR).
+- reboot
+  - Syntax: reboot
+  - Purpose: full module reboot (PAIR023). Required on DA/EA after SAVEPAR for survey-in. PAIR003/PAIR002 sleep is not a reboot.
 
 Role and profile control:
 
@@ -551,8 +567,8 @@ Role and profile control:
   - Purpose: set base mode.
 - base_survey [minTimeSec] [stdDevM]
   - Syntax: base_survey [minTimeSec] [stdDevM]
-  - Purpose: configure Survey-In base mode.
-  - Example: base_survey 300 2.0
+  - Purpose: configure Survey-In base mode. AccLimit is meters; default 15 starts <Obs> on DA. Then save and reboot.
+  - Example: base_survey 300 15
 - base_fixed LAT LON ALT
   - Syntax: base_fixed LAT_DEG LON_DEG ALT_M
   - Purpose: configure fixed-base position from decimal lat/lon + altitude.
@@ -564,7 +580,7 @@ Role and profile control:
 - profile_base_survey [sec] [std] [rtcm0or1] [save0or1] [verify0or1]
   - Syntax: profile_base_survey [sec] [std] [rtcm0or1] [save0or1] [verify0or1]
   - Purpose: apply survey-base mission profile.
-  - Example: profile_base_survey 3600 1.5 1 1 1
+  - Example: profile_base_survey 3600 15 1 1 1
 - profile_base_static LAT LON ALT [rtcm0or1] [save0or1] [verify0or1]
   - Syntax: profile_base_static LAT_DEG LON_DEG ALT_M [rtcm0or1] [save0or1] [verify0or1]
   - Purpose: apply static-base mission profile.
@@ -585,7 +601,7 @@ Survey capture and conversion:
   - Example: survey_apply 1
 - survey_finalize [timeoutMs] [save0or1]
   - Syntax: survey_finalize [timeoutMs] [save0or1]
-  - Purpose: capture Survey-In ECEF and apply it as fixed-base in one flow.
+  - Purpose: capture Survey-In ECEF and apply it as fixed-base in one flow. Use only after `$PQTMSVINSTATUS` Valid=2, not at survey start.
   - Example: survey_finalize 2000 1
 
 Accuracy trend status (ring-buffer backed):
@@ -665,13 +681,13 @@ Family summary:
 
 - Identity: qver, uid
 - Identity extras: serial number query via `querySerialNumber()`
-- Lifecycle: restore, save, hot, warm, cold, gnss_start, gnss_stop
+- Lifecycle: restore, save, reboot, hot, warm, cold, gnss_start, gnss_stop
 - Core configuration: rover, base, base_survey, base_fixed, mode_query, msg_on, msg_off, msg_query, baud, baud_query, fixrate, fixrate_query, rtcm
 - Core configuration extras: PPS config via `setPulsePerSecondConfig()` and `queryPulsePerSecondConfig()`
 - Survey and base workflows: profile_uas, profile_base_survey, profile_base_static, survey_capture, survey_pos, survey_apply, survey_finalize
 - Output and diagnostics: status, survey_status, rover_status
 - Transport and bridge: send
-- Pair control: PAIR helpers plus `readPairAck()`
+- Pair control: PAIR helpers plus `readPairAck()` and `rebootModule()` (PAIR023)
 
 ## Command metadata schema
 
@@ -858,9 +874,9 @@ And exposes a power-cycle advisory flag:
 Example:
 
 ```cpp
-LC29H_GNSS::PresetResult r = gnss.applyBaseSurveyPreset(3600, 1.5f, true, true);
+LC29H_GNSS::PresetResult r = gnss.applyBaseSurveyPreset(3600, 15.0f, true, true);
 if (r == LC29H_GNSS::PresetResult::Success && gnss.isPowerCycleRecommended()) {
-  Serial.println("Power-cycle recommended for full effect");
+  gnss.rebootModule();  // PAIR023; PAIR003/PAIR002 sleep is not enough
 }
 ```
 

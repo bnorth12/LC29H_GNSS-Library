@@ -78,6 +78,7 @@ void setup() {
 
     Serial.println();
     Serial.println("RoverCorrectionBridge example");
+    Serial.println("Ingest RTCM from the link UART and write it raw to GNSS. Drain GNSS every loop.");
     Serial.print("Local NMEA print=");
     Serial.println(kPrintLocalNmea ? "on" : "off");
     Serial.print("Forward NMEA to link=");
@@ -96,6 +97,12 @@ void setup() {
     };
     roverEnabled = LC29H_applyProjectConfig(gnss, profileResult) &&
         profileResult.status == LC29H_GNSS::ProfileStatus::Success;
+
+    if (roverEnabled && profileResult.powerCycleRecommended) {
+        Serial.println("Rebooting module (PAIR023). PAIR003/PAIR002 sleep is not enough.");
+        gnss.rebootModule();
+        delay(3000);
+    }
 
     bridgeMode = LC29H_projectBridgeMode();
     bridgeFilter = LC29H_projectBridgeNmeaFilter();

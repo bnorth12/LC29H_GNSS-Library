@@ -354,11 +354,18 @@ public:
     bool restoreDefaults();
     bool resetToDefaults();
     bool saveConfig();
+    // Full module reboot (PAIR023). Required on DA/EA after PQTMSAVEPAR for CFGSVIN
+    // (survey-in) and some other writes to take effect. PAIR003/PAIR002 GNSS sleep
+    // is not a reboot and will not start <Obs>.
+    bool rebootModule();
 
     // Sets rover mode and the receiver output/fix rate used by the rover preset.
     bool configureRover(uint16_t outputMs = 200);
     bool configureBaseStation();
-    bool configureBaseSurveyIn(uint32_t minTimeSec = 300, float minStdDevM = 2.0f);
+    // Writes base mode + CFGSVIN. AccLimit is meters; 15 is the Quectel default that lets
+    // <Obs> start on DA (0/2/8 left Obs at 0). Caller must PQTMSAVEPAR then rebootModule()
+    // (PAIR023). PAIR003/PAIR002 GNSS sleep is not enough on DA.
+    bool configureBaseSurveyIn(uint32_t minTimeSec = 300, float minStdDevM = 15.0f);
     bool querySurveyIn();
     // Sends a survey-in query and waits for an OK response containing ECEF values.
     // Returns true only when ECEF is parsed and stored in _capturedSurveyEcef.
@@ -426,16 +433,20 @@ public:
     bool enableRTCM(bool enable = true);
 
     // Preset-level workflows for common setup paths.
+    // Survey AccLimit default is 15 m (Quectel DA default that starts <Obs>).
+    // Presets save when asked but do not reboot; call rebootModule() after SAVEPAR on DA/EA.
     PresetResult applyRoverPreset(uint16_t outputMs = 200, bool save = true);
-    PresetResult applyBaseSurveyPreset(uint32_t minTimeSec = 300, float minStdDevM = 2.0f, bool enableRtcm = true, bool save = true);
+    PresetResult applyBaseSurveyPreset(uint32_t minTimeSec = 300, float minStdDevM = 15.0f, bool enableRtcm = true, bool save = true);
     PresetResult applyBaseFixedPreset(double latDeg, double lonDeg, double altM, bool enableRtcm = true, bool save = true);
 
     // Mission profiles with optional verification queries after configuration.
+    // applySurveyBaseProfile enables PQTMSVINSTATUS at RATE 1; lower bulky NMEA
+    // (GSV / PQTMSVINSTATUS RATE 10) after apply, then SAVEPAR + rebootModule().
     ProfileResult applyUasRoverProfile(uint32_t fixRateMs = 200, bool save = true, bool verify = true);
-    ProfileResult applySurveyBaseProfile(uint32_t minTimeSec = 300, float minStdDevM = 2.0f, bool enableRtcm = true, bool save = true, bool verify = true);
+    ProfileResult applySurveyBaseProfile(uint32_t minTimeSec = 300, float minStdDevM = 15.0f, bool enableRtcm = true, bool save = true, bool verify = true);
     ProfileResult applyStaticBaseProfile(double latDeg, double lonDeg, double altM, bool enableRtcm = true, bool save = true, bool verify = true);
 
-    // Many module settings only fully take effect after save + restart/power-cycle.
+    // Many module settings only fully take effect after save + rebootModule() (PAIR023).
     // These methods expose that recommendation without forcing hardware policy.
     bool isPowerCycleRecommended() const;
     void clearPowerCycleRecommended();
@@ -458,6 +469,10 @@ public:
         size_t chunkSize = 256);
     size_t forwardAvailable(Stream& out, size_t maxBytes = 0);
     bool forwardNmeaLine(Stream& out, uint32_t timeoutMs = 0);
+    // Single UART reader for mixed NMEA+RTCM. Call every loop. Stops after maxBytes
+    // or kMaxBridgePumpMs (15 ms). Do not parse/log/LittleFS inside localNmeaOut;
+    // queue complete lines and process after the pump returns. Do not call readLine
+    // or query* on the same Stream while this pump owns it.
     size_t forwardBridgeAvailable(
         Stream& out,
         BridgeState& state,

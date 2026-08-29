@@ -258,6 +258,7 @@ void setup() {
     Serial.println();
     Serial.println("ESP32BtRoamer example");
     Serial.println("Bluetooth correction ingress for phone-based RTIP/RTCM apps.");
+    Serial.println("After SAVEPAR, PAIR023 reboots the module. Drain GNSS UART every loop.");
     Serial.println("Use help registry, help bridge, help placeholders, and help family coreconfiguration in the library console.");
 #if defined(LC29H_BT_ROAMER_USE_SPP)
     Serial.println("Transport mode: BT Classic SPP");
@@ -285,13 +286,16 @@ void setup() {
 
     Serial.print("Project config status=");
     Serial.println(profileStatusName(profileResult.status));
-    if (profileResult.powerCycleRecommended) {
-        Serial.println("Power cycle recommended after configuration.");
-    }
 
     if (!roverEnabled) {
         Serial.println("Rover setup failed.");
         return;
+    }
+
+    if (profileResult.powerCycleRecommended) {
+        Serial.println("Rebooting module (PAIR023). PAIR003/PAIR002 sleep is not enough.");
+        gnss.rebootModule();
+        delay(3000);
     }
 
     gnss.queryVersion();

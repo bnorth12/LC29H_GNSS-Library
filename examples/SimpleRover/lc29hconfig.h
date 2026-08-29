@@ -68,16 +68,16 @@
 // -----------------------------------------------------------------------------
 // BASE STATION OPTIONS
 // -----------------------------------------------------------------------------
-// Survey-in controls.
+// Unused unless ROLE is switched to BASE_SURVEY. AccLimit 15 m starts Obs on DA.
 #define LC29H_CFG_SURVEY_MIN_TIME_SEC 3600
-#define LC29H_CFG_SURVEY_MIN_STDDEV_M 1.5f
+#define LC29H_CFG_SURVEY_MIN_STDDEV_M 15.0f
 // Base accuracy tracker (used by survey_status command).
 #define LC29H_CFG_BASE_ACCURACY_TRACK_ENABLE 0
 #define LC29H_CFG_BASE_ACCURACY_TRACK_WINDOW_SEC LC29H_CFG_SURVEY_MIN_TIME_SEC
 // 0 = board-family default point count.
 #define LC29H_CFG_BASE_ACCURACY_TRACK_MAX_POINTS 0
 // Auto-finalize writes captured survey ECEF as fixed base after survey apply.
-#define LC29H_CFG_FINALIZE_SURVEY_TO_FIXED 1
+#define LC29H_CFG_FINALIZE_SURVEY_TO_FIXED 0
 #define LC29H_CFG_SURVEY_CAPTURE_TIMEOUT_MS 2000
 
 // Fixed base coordinates for BASE_STATIC role.

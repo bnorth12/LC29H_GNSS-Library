@@ -69,6 +69,7 @@ That inventory should remain stable until the canonical 108-base list is checked
 - Done: reserve NMEA buffer, skip nested accuracy walk when `localNmeaOut` is set, and cap each pump at `kMaxBridgePumpMs` (v0.2.4)
 - Done: survey-in AccLimit in meters, MSGRATE includes MsgVer, PAIR432 disable is -1 (v0.2.5)
 - Done: MSGRATE omits MsgVer for standard NMEA; DA save+restart is caller-owned (v0.2.6)
+- Done: AccLimit default 15 m, `rebootModule()` (PAIR023), examples pump + RATE 10 (v0.2.7)
 - Next: family metadata entries for bridge-related command bases
 - Next: family-level docs for bridge modes and NMEA allowlists
 

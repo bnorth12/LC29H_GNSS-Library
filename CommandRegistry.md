@@ -78,7 +78,7 @@ Status key:
 | PAIR005 | known | generic send helper | PairControl | Control | PairAck | Tool-config family member |
 | PAIR006 | known | generic send helper | PairControl | Control | PairAck | Tool-config family member |
 | PAIR007 | known | generic send helper | PairControl | Control | PairAck | Tool-config family member |
-| PAIR023 | known | generic send helper | PairControl | Control | PairAck | Tool-config family member |
+| PAIR023 | known | `rebootModule()` | PairControl | Control | PairAck | Full module reboot; required after SAVEPAR for DA survey-in |
 | PAIR432 | known | `enableRTCM(true/false)` | PairControl | Control | PairAck | RTCM enable control |
 | PAIR434 | known | `enableRTCM(true/false)` | PairControl | Control | PairAck | RTCM enable control |
 

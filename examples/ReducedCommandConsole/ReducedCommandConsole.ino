@@ -50,10 +50,13 @@ static void printHelp() {
     Serial.println(F("  rover [rateMs]"));
     Serial.println(F("  base"));
     Serial.println(F("  fixrate <ms>"));
+    Serial.println(F("  save          (PQTMSAVEPAR)"));
+    Serial.println(F("  reboot        (PAIR023 full module reboot)"));
     Serial.println(F("  hot | warm | cold"));
     Serial.println(F("  gnss_start | gnss_stop"));
     Serial.println(F("  send <payload>"));
-    Serial.println(F("  library help now includes registry, bridge, placeholders, and family summaries."));
+    Serial.println(F("  Survey-in on DA: send PQTMCFGSVIN,W,1,3600,15,0,0,0 then save then reboot."));
+    Serial.println(F("  AccLimit 15 m starts Obs; PAIR003 sleep is not a reboot."));
 }
 
 static void handleCommand(char* line) {
@@ -120,6 +123,18 @@ static void handleCommand(char* line) {
         return;
     }
 
+    if (strcmp(line, "save") == 0) {
+        sendPayload("PQTMSAVEPAR");
+        Serial.println(F("PQTMSAVEPAR sent."));
+        return;
+    }
+
+    if (strcmp(line, "reboot") == 0) {
+        sendPayload("PAIR023");
+        Serial.println(F("PAIR023 sent. Wait for the module to come back."));
+        return;
+    }
+
     if (strcmp(line, "hot") == 0) {
         sendPayload("PQTMHOT");
         return;
@@ -170,7 +185,7 @@ void setup() {
 #endif
 
     Serial.println(F("ReducedCommandConsole ready."));
-    Serial.println(F("Type help for commands."));
+    Serial.println(F("Type help for commands. Drain GNSS UART every loop."));
 }
 
 void loop() {

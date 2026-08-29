@@ -218,8 +218,9 @@ inline bool LC29H_applyProjectConfig(LC29H_GNSS& gnss, LC29H_GNSS::ProfileResult
         LC29H_CFG_VERIFY);
 
 #if LC29H_CFG_FINALIZE_SURVEY_TO_FIXED
-    // Optional post-survey lock-in path:
-    // query surveyed ECEF -> write fixed ECEF -> optional save.
+    // Optional post-survey lock-in path. Leave this 0 while survey-in is running
+    // (Valid=1): capturing ECEF at startup wipes or skips a live SVIN. Enable only
+    // after Valid=2, then query surveyed ECEF -> write fixed ECEF -> optional save.
     if (outResult.status == LC29H_GNSS::ProfileStatus::Success) {
         LC29H_GNSS::PresetResult finalizeResult =
             gnss.finalizeSurveyInToFixedBase(LC29H_CFG_SURVEY_CAPTURE_TIMEOUT_MS, LC29H_CFG_SAVE);

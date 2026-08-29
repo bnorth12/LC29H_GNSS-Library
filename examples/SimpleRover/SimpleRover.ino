@@ -1,6 +1,9 @@
 #include <LC29H_GNSS.h>
 #include <LC29H_ProjectConfig.h>
 
+// Simple UAS rover profile. Drain GNSS UART every loop (one reader).
+// After SAVEPAR, rebootModule() (PAIR023) if the profile recommends it.
+//
 // Minimum verified hardware:
 // - Arduino Mega 2560 class (AVR Uno/Nano class boards run out of RAM)
 // - ESP32 class boards are also supported via their dedicated paths
@@ -12,6 +15,7 @@
 namespace {
 constexpr uint32_t kConsoleBaud = 115200;
 constexpr uint32_t kGnssBaud = 115200;
+constexpr uint32_t kRebootSettleMs = 3000;
 
 #if defined(ARDUINO_ARCH_ESP32)
 constexpr int kGnssRxPin = 16;
@@ -74,14 +78,21 @@ void setup() {
         return;
     }
 
+    if (result.powerCycleRecommended) {
+        Serial.println("Rebooting module (PAIR023). PAIR003/PAIR002 sleep is not enough.");
+        gnss.rebootModule();
+        delay(kRebootSettleMs);
+    }
+
     gnss.queryVersion();
     gnss.queryReceiverMode();
     gnss.queryFixRate();
     Serial.println("Rover profile ready. Type help for commands.");
-    Serial.println("Use help registry, help bridge, and help family coreconfiguration for the expanded command surface.");
+    Serial.println("Use help reboot, help registry, and help family coreconfiguration.");
 }
 
 void loop() {
+    // Drain every loop. Typed console commands also read this UART.
 #if !defined(ARDUINO_AVR_MEGA2560)
     gnss.processSerialCommands();
 #endif

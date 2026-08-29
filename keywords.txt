@@ -12,6 +12,7 @@ queryUniqueId`tKEYWORD2
 restoreDefaults`tKEYWORD2
 resetToDefaults`tKEYWORD2
 saveConfig`tKEYWORD2
+rebootModule`tKEYWORD2
 configureRover`tKEYWORD2
 configureBaseStation`tKEYWORD2
 configureBaseSurveyIn`tKEYWORD2

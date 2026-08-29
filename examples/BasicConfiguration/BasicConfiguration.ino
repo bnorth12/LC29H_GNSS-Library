@@ -1,6 +1,10 @@
 #include <LC29H_GNSS.h>
 #include <LC29H_ProjectConfig.h>
 
+// Full reference/demo: project config, queries, and Serial Monitor commands.
+// Survey-base default: AccLimit 15 m, GSV/SVIN RATE 10, SAVEPAR + PAIR023.
+// Do not survey_finalize until $PQTMSVINSTATUS Valid=2.
+//
 // Minimum verified hardware:
 // - Arduino Mega 2560 class (AVR Uno/Nano class boards run out of RAM)
 // - ESP32 class boards are also supported via their dedicated paths
@@ -12,6 +16,7 @@
 namespace {
 constexpr uint32_t kConsoleBaud = 115200;
 constexpr uint32_t kGnssBaud = 115200;
+constexpr uint32_t kRebootSettleMs = 3000;
 
 #if defined(ARDUINO_ARCH_ESP32)
 constexpr int kGnssRxPin = 16;
@@ -48,6 +53,11 @@ void printProfileResult(const char* label, const LC29H_GNSS::ProfileResult& resu
     Serial.println(result.powerCycleRecommended ? "yes" : "no");
 }
 
+void applyStatusMessageRates() {
+    gnss.setMessageRate("GSV", 1, 10);
+    gnss.setMessageRate("PQTMSVINSTATUS", 1, 10);
+}
+
 void printStartupPins() {
     Serial.print("GNSS UART pins RX=");
     Serial.print(kGnssRxPin);
@@ -71,6 +81,7 @@ void setup() {
 
     Serial.println();
     Serial.println("BasicConfiguration example");
+    Serial.println("AccLimit 15 m, GSV/SVIN RATE 10, SAVEPAR + PAIR023. RTCM stays 1 Hz.");
     printStartupPins();
 
     if (!LC29H_projectConfigAvailable()) {
@@ -87,6 +98,14 @@ void setup() {
 
     if (profileResult.status != LC29H_GNSS::ProfileStatus::Success) {
         return;
+    }
+
+    applyStatusMessageRates();
+    gnss.saveConfig();
+    if (profileResult.powerCycleRecommended) {
+        Serial.println("Rebooting module (PAIR023). PAIR003/PAIR002 sleep is not enough.");
+        gnss.rebootModule();
+        delay(kRebootSettleMs);
     }
 
     gnss.queryVersion();
@@ -107,7 +126,8 @@ void setup() {
     }
 
     Serial.println("Type help in Serial Monitor for interactive commands.");
-    Serial.println("Try help registry, help bridge, help placeholders, and help family coreconfiguration.");
+    Serial.println("Try help reboot, help base_survey, help registry, and help family surveyandbase.");
+    Serial.println("survey_finalize only after Valid=2. Typed commands steal UART from the drain.");
 }
 
 void loop() {

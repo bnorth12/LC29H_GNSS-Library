@@ -100,11 +100,12 @@ Use `help family <name>` in the Serial Monitor to print the default schema for a
 - PQTMCFGRCVRMODE,W,2
   - Purpose: Set receiver mode to base.
 
-- PQTMCFGSVIN,W,1,TIME_SEC,STDDEV_TENTH_M,0,0,0
-  - Purpose: Configure Survey-In.
+- PQTMCFGSVIN,W,1,TIME_SEC,ACC_LIMIT_M,0,0,0
+  - Purpose: Configure Survey-In. `<3D_AccLimit>` is **meters** (not tenths). Quectel default 15.0 starts `<Obs>` on LC29H(DA); 0 is not usable.
   - Observed examples:
     - $PQTMCFGSVIN,W,1,3600,15,0,0,0*1
     - $PQTMCFGSVIN,W,1,84600,15,0,0,0*1C
+  - DA/EA: takes effect only after PQTMSAVEPAR and PAIR023 (`rebootModule()`). PAIR003/PAIR002 GNSS sleep is not enough.
 
 - PQTMCFGSVIN,R
   - Purpose: Read Survey-In config/status.
@@ -153,13 +154,13 @@ Use `help family <name>` in the Serial Monitor to print the default schema for a
   - Note: this command is currently documented from QGNSS logs and remains provisional until confirmed against module-specific ACKs.
 
 - PAIR432,1 and PAIR434,1
-  - Purpose: Used in QGNSS while enabling RTCM-related behavior.
+  - Purpose: Enable RTCM MSM7 + 1005 (1 Hz mission stream for a base).
 
-- PAIR432,0 and PAIR434,0
-  - Purpose: Used by this library to disable the same behavior.
+- PAIR432,-1 and PAIR434,0
+  - Purpose: Disable RTCM. `PAIR432,0` is MSM4, not off.
 
-- PQTMCFGSVIN,W,1,TIME_SEC,STDDEV_TENTH_M,0,0,0
-  - Purpose: Configure Survey-In.
+- PQTMCFGSVIN,W,1,TIME_SEC,ACC_LIMIT_M,0,0,0
+  - Purpose: Configure Survey-In. AccLimit is meters; 15 starts `<Obs>` on DA.
 
 - PQTMCFGSVIN,R
   - Purpose: Read Survey-In config/status.
@@ -206,8 +207,13 @@ Use `help family <name>` in the Serial Monitor to print the default schema for a
 
 ## Also present in QGNSS ModeInfo.json
 
-- PAIR004, PAIR005, PAIR006, PAIR007, PAIR023
+- PAIR004, PAIR005, PAIR006, PAIR007
   - These appear as hot/warm/cold/full/restart commands in tool config and can be exposed in later API passes.
+
+- PAIR023
+  - Purpose: Full module reboot. Wrapper: `rebootModule()`.
+  - Required on LC29H(DA/EA) after PQTMSAVEPAR for CFGSVIN (survey-in) to start counting `<Obs>`.
+  - PAIR003/PAIR002 GNSS sleep is not a reboot.
 
 ## Important note
 

@@ -90,10 +90,11 @@
 // BASE STATION OPTIONS
 // -----------------------------------------------------------------------------
 // Survey-in base profile.
-// MIN_TIME_SEC is the required survey duration.
-// MIN_STDDEV_M is the target accuracy threshold in meters.
+// MIN_TIME_SEC is MinDur (position-fix count at 1 Hz, so seconds at 1 Hz).
+// MIN_STDDEV_M is <3D_AccLimit> in meters. Quectel default 15.0 starts <Obs>
+// on LC29H(DA). 0 / 1.5 / 2 left Obs at 0. After apply: SAVEPAR then PAIR023.
 #define LC29H_CFG_SURVEY_MIN_TIME_SEC 3600
-#define LC29H_CFG_SURVEY_MIN_STDDEV_M 1.5f
+#define LC29H_CFG_SURVEY_MIN_STDDEV_M 15.0f
 
 // Base survey accuracy tracker.
 // ENABLE=1 turns on tracking used by survey_status command.
@@ -104,9 +105,9 @@
 #define LC29H_CFG_BASE_ACCURACY_TRACK_MAX_POINTS 0
 
 // Post-survey auto-finalize.
-// When enabled, survey profile flow captures surveyed ECEF and rewrites it
-// as fixed-base coordinates automatically.
-#define LC29H_CFG_FINALIZE_SURVEY_TO_FIXED 1
+// Leave 0 while survey-in is running (Valid=1). Set 1 only after Valid=2 to
+// capture ECEF and rewrite it as fixed-base coordinates.
+#define LC29H_CFG_FINALIZE_SURVEY_TO_FIXED 0
 #define LC29H_CFG_SURVEY_CAPTURE_TIMEOUT_MS 2000
 
 // Static base coordinates (used by BASE_STATIC role).

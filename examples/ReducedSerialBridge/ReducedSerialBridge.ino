@@ -15,8 +15,8 @@ void setup() {
     gnssPort.begin(kGnssBaud);
 
     Serial.println(F("ReducedSerialBridge ready."));
-    Serial.println(F("Raw passthrough: USB Serial <-> GNSS UART"));
-    Serial.println(F("Bridge guidance now lives in the main library help: registry, bridge, placeholders, and family summaries."));
+    Serial.println(F("Raw passthrough: USB Serial <-> GNSS UART (one reader on each side)."));
+    Serial.println(F("Do not mix this sketch with QGNSS or a second UART client on the same port."));
 }
 
 void loop() {

@@ -92,7 +92,7 @@ static bool parseFloatField(const String& s, float& out) {
 static void printHelpOverview(Stream& console) {
     console.println("Command groups:");
     console.println("- Identity: help qver uid");
-    console.println("- Lifecycle: help restore save hot warm cold gnss_start gnss_stop");
+    console.println("- Lifecycle: help restore save reboot hot warm cold gnss_start gnss_stop");
     console.println("- Core configuration: help rover base base_survey base_fixed mode_query msg_on msg_off msg_query baud baud_query fixrate fixrate_query rtcm");
     console.println("- Survey and base workflows: help profile_uas profile_base_survey profile_base_static survey_capture survey_pos survey_apply survey_finalize");
     console.println("- Output and diagnostics: help status survey_status rover_status");
@@ -183,7 +183,15 @@ static bool printDetailedCommandHelp(Stream* console, const String& helpArgs) {
 
     if (topic == "save") {
         console->println("save");
-        console->println("Save current receiver configuration to flash.");
+        console->println("Save current receiver configuration to flash (PQTMSAVEPAR).");
+        console->println("On DA/EA, CFGSVIN still needs reboot (PAIR023) after save.");
+        return true;
+    }
+
+    if (topic == "reboot") {
+        console->println("reboot");
+        console->println("Full module reboot (PAIR023). Required after SAVEPAR for survey-in.");
+        console->println("PAIR003/PAIR002 GNSS sleep is not a reboot.");
         return true;
     }
 
@@ -203,7 +211,8 @@ static bool printDetailedCommandHelp(Stream* console, const String& helpArgs) {
     if (topic == "base_survey") {
         console->println("base_survey [minTimeSec] [stdDevM]");
         console->println("Enable Survey-In base mode with duration and accuracy limits.");
-        console->println("Example: base_survey 300 2.0");
+        console->println("AccLimit is meters; 15 starts <Obs> on DA. Then save and reboot.");
+        console->println("Example: base_survey 300 15");
         return true;
     }
 
@@ -224,7 +233,8 @@ static bool printDetailedCommandHelp(Stream* console, const String& helpArgs) {
     if (topic == "profile_base_survey") {
         console->println("profile_base_survey [sec] [std] [rtcm0or1] [save0or1] [verify0or1]");
         console->println("Apply survey base profile with optional RTCM, save, verify.");
-        console->println("Example: profile_base_survey 300 2.0 1 1 1");
+        console->println("AccLimit is meters; 15 starts <Obs> on DA. Then reboot (PAIR023).");
+        console->println("Example: profile_base_survey 300 15 1 1 1");
         return true;
     }
 
@@ -272,6 +282,7 @@ static bool printDetailedCommandHelp(Stream* console, const String& helpArgs) {
     if (topic == "survey_finalize") {
         console->println("survey_finalize [timeoutMs] [save0or1]");
         console->println("Capture Survey-In ECEF and apply it as fixed base.");
+        console->println("Use only after PQTMSVINSTATUS Valid=2, not at survey start.");
         console->println("Example: survey_finalize 2000 1");
         return true;
     }
@@ -333,6 +344,7 @@ static bool printDetailedCommandHelp(Stream* console, const String& helpArgs) {
     if (topic == "hot" || topic == "warm" || topic == "cold") {
         console->println("hot | warm | cold");
         console->println("Perform GNSS restart with selected startup mode.");
+        console->println("These are not a full module reboot. Use reboot (PAIR023) after SAVEPAR.");
         return true;
     }
 
@@ -438,7 +450,8 @@ static bool printDetailedCommandHelp(Stream* console, const String& helpArgs) {
         } else if (topic == "base_survey") {
             console->println("base_survey [minTimeSec] [stdDevM]");
             console->println("Enable Survey-In base mode with duration and accuracy limits.");
-            console->println("Example: base_survey 300 2.0");
+            console->println("AccLimit is meters; 15 starts <Obs> on DA. Then save and reboot.");
+            console->println("Example: base_survey 300 15");
         } else {
             console->println("base_fixed <lat> <lon> <alt>");
             console->println("Enable fixed base coordinates (decimal degrees, meters).");
@@ -822,8 +835,16 @@ bool LC29H_GNSS::resetToDefaults() {
 }
 
 bool LC29H_GNSS::saveConfig() {
-    // The save command varies by firmware. Keep this explicit for now.
+    // PQTMSAVEPAR writes working config to flash. On DA/EA, CFGSVIN and some other
+    // writes still need rebootModule() (PAIR023) before they take effect.
     return sendPayload("PQTMSAVEPAR");
+}
+
+bool LC29H_GNSS::rebootModule() {
+    // PAIR023 full module reboot. Required on DA/EA after PQTMSAVEPAR for
+    // CFGSVIN (survey-in) to start counting <Obs>. PAIR003/PAIR002 GNSS
+    // sleep is not a reboot.
+    return sendPayload("PAIR023");
 }
 
 bool LC29H_GNSS::configureRover(uint16_t outputMs) {
@@ -845,10 +866,10 @@ bool LC29H_GNSS::configureBaseStation() {
 
 bool LC29H_GNSS::configureBaseSurveyIn(uint32_t minTimeSec, float minStdDevM) {
     // Writes PQTMCFGRCVRMODE,W,2 then PQTMCFGSVIN,W,1,<MinDur>,<3D_AccLimit>,0,0,0.
-    // <3D_AccLimit> is meters (0 = no limit, default 15.0). Mode=1 requires ECEF 0,0,0.
-    // LC29H(DA): these two commands take effect only after PQTMSAVEPAR and a GNSS subsystem
-    // restart (PAIR003 off, >2 s, PAIR002 on — not PQTMSRR, which is AA/AL-only). This helper
-    // does not save or restart; the caller must.
+    // <3D_AccLimit> is meters. Quectel default 15.0 starts <Obs> on DA; 0 is not usable.
+    // Mode=1 requires ECEF 0,0,0. DA/EA: take effect only after PQTMSAVEPAR and PAIR023
+    // (full module reboot). PAIR003/PAIR002 GNSS sleep is not enough. This helper does
+    // not save or restart; the caller must.
     String payload = "PQTMCFGSVIN,W,1,";
     payload += String(minTimeSec);
     payload += ",";
@@ -1465,6 +1486,8 @@ LC29H_GNSS::ProfileResult LC29H_GNSS::applySurveyBaseProfile(uint32_t minTimeSec
     if (!configureBaseSurveyIn(minTimeSec, minStdDevM)) {
         return {ProfileStatus::CommandFailed, _powerCycleRecommended};
     }
+    // RATE 1 is a safe enable. Callers should then lower bulky NMEA (GSV and
+    // PQTMSVINSTATUS to RATE 10) so 1 Hz RTCM keeps the UART budget.
     if (!enableMessageOutput("PQTMSVINSTATUS", 1)) {
         return {ProfileStatus::CommandFailed, _powerCycleRecommended};
     }
@@ -2231,7 +2254,7 @@ const LC29H_GNSS::CommandFieldSpec kEmptyFieldList[] = {};
 const LC29H_GNSS::CommandFieldSpec kIdentityRequestFields[] = {};
 const LC29H_GNSS::CommandFieldSpec kConfigReadRequestFields[] = {};
 const LC29H_GNSS::CommandFieldSpec kRoverRequestFields[] = {{"rateMs", LC29H_GNSS::CommandFieldType::Milliseconds, true, "ms", "Optional rover fix interval"}};
-const LC29H_GNSS::CommandFieldSpec kBaseSurveyRequestFields[] = {{"minTimeSec", LC29H_GNSS::CommandFieldType::Seconds, true, "s", "Survey-in duration"}, {"minStdDevM", LC29H_GNSS::CommandFieldType::Meters, true, "m", "Survey-in std-dev threshold"}};
+const LC29H_GNSS::CommandFieldSpec kBaseSurveyRequestFields[] = {{"minTimeSec", LC29H_GNSS::CommandFieldType::Seconds, true, "s", "Survey-in MinDur (fix count at 1 Hz)"}, {"minStdDevM", LC29H_GNSS::CommandFieldType::Meters, true, "m", "3D AccLimit meters; 15 starts Obs on DA"}};
 const LC29H_GNSS::CommandFieldSpec kBaseFixedRequestFields[] = {{"latDeg", LC29H_GNSS::CommandFieldType::Degrees, true, "deg", "Latitude in decimal degrees"}, {"lonDeg", LC29H_GNSS::CommandFieldType::Degrees, true, "deg", "Longitude in decimal degrees"}, {"altM", LC29H_GNSS::CommandFieldType::Meters, true, "m", "Altitude in meters"}};
 const LC29H_GNSS::CommandFieldSpec kMessageRequestFields[] = {{"messageName", LC29H_GNSS::CommandFieldType::Text, false, nullptr, "NMEA/PQTM message base"}, {"port", LC29H_GNSS::CommandFieldType::Port, true, nullptr, "Output port"}, {"rate", LC29H_GNSS::CommandFieldType::Rate, true, nullptr, "Output rate"}};
 const LC29H_GNSS::CommandFieldSpec kBaudRequestFields[] = {{"uartPort", LC29H_GNSS::CommandFieldType::Port, true, nullptr, "UART port index"}, {"baudRate", LC29H_GNSS::CommandFieldType::Unsigned, true, "baud", "UART baud rate"}};
@@ -2290,7 +2313,7 @@ const LC29H_GNSS::CommandMetadata kKnownMetadata[] = {
     {"PAIR005", "genericSendHelper", LC29H_GNSS::CommandFamily::PairControl, LC29H_GNSS::CommandDirection::Control, LC29H_GNSS::CommandAckKind::PairAck, "PAIR family member observed in ModeInfo.json", nullptr, nullptr, false, false, true, kPairWriteFields, 0, &kPairAckResponse, kEmptyFieldList, 0},
     {"PAIR006", "genericSendHelper", LC29H_GNSS::CommandFamily::PairControl, LC29H_GNSS::CommandDirection::Control, LC29H_GNSS::CommandAckKind::PairAck, "PAIR family member observed in ModeInfo.json", nullptr, nullptr, false, false, true, kPairWriteFields, 0, &kPairAckResponse, kEmptyFieldList, 0},
     {"PAIR007", "genericSendHelper", LC29H_GNSS::CommandFamily::PairControl, LC29H_GNSS::CommandDirection::Control, LC29H_GNSS::CommandAckKind::PairAck, "PAIR family member observed in ModeInfo.json", nullptr, nullptr, false, false, true, kPairWriteFields, 0, &kPairAckResponse, kEmptyFieldList, 0},
-    {"PAIR023", "genericSendHelper", LC29H_GNSS::CommandFamily::PairControl, LC29H_GNSS::CommandDirection::Control, LC29H_GNSS::CommandAckKind::PairAck, "PAIR family member observed in ModeInfo.json", nullptr, nullptr, false, false, true, kPairWriteFields, 0, &kPairAckResponse, kEmptyFieldList, 0},
+    {"PAIR023", "rebootModule", LC29H_GNSS::CommandFamily::PairControl, LC29H_GNSS::CommandDirection::Control, LC29H_GNSS::CommandAckKind::PairAck, "Full module reboot. Required on DA/EA after SAVEPAR for CFGSVIN to start Obs. PAIR003/PAIR002 sleep is not a reboot.", nullptr, nullptr, false, false, true, kPairWriteFields, 0, &kPairAckResponse, kEmptyFieldList, 0},
     {"PAIR001", "readPairAck/tryParsePairAck", LC29H_GNSS::CommandFamily::PairControl, LC29H_GNSS::CommandDirection::Read, LC29H_GNSS::CommandAckKind::PairAck, "PAIR acknowledgement capture", nullptr, nullptr, false, false, true, kPairWriteFields, 0, &kPairAckResponse, kEmptyFieldList, 0}
 };
 
@@ -2794,6 +2817,10 @@ bool LC29H_GNSS::_handleConsoleLine(const String& line) {
         return saveConfig();
     }
 
+    if (head == "reboot") {
+        return rebootModule();
+    }
+
     if (head == "rover") {
         uint16_t rateMs = 200;
         if (firstSpace >= 0) {
@@ -2849,7 +2876,7 @@ bool LC29H_GNSS::_handleConsoleLine(const String& line) {
 
     if (head == "profile_base_survey") {
         uint32_t sec = 300;
-        float stdDev = 2.0f;
+        float stdDev = 15.0f;
         bool rtcm = true;
         bool save = true;
         bool verify = true;
@@ -3039,7 +3066,7 @@ bool LC29H_GNSS::_handleConsoleLine(const String& line) {
 
     if (head == "base_survey") {
         uint32_t sec = 300;
-        float stdDev = 2.0f;
+        float stdDev = 15.0f;
 
         if (firstSpace >= 0) {
             const String args = cmd.substring(firstSpace + 1);
