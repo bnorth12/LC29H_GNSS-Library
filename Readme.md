@@ -17,7 +17,7 @@ Initial library skeleton is now implemented with:
 - Rover output/fix rate helper: PQTMCFGFIXRATE,W/R
 - Receiver mode query: PQTMCFGRCVRMODE,R
 - Survey-In helper
-- Message output control and query: PQTMCFGMSGRATE,W/R (writes use message name and rate)
+- Message output control and query: PQTMCFGMSGRATE,W/R (writes use MsgName, Rate, MsgVer)
 - Parsed message-rate queries for app logic: getMessageRate(...)
 - UART baud rate set/query: PQTMCFGUART,W/R
 - Parsed baud query: getBaudRate(...)
@@ -39,6 +39,14 @@ Raw-data design note:
 - This library is intentionally compatible with higher-layer NMEA/RTK stacks.
 - It can be used for configuration/control while raw GNSS/RTCM bytes are forwarded upstream.
 - Parsing can remain in dedicated libraries/apps (for example TinyGPS++, RTK parsers, SW Maps feeders, NTRIP bridge apps).
+
+## Version 0.2.5
+
+Command payloads aligned with Quectel LC29H(BS) Protocol Specification v1.1:
+
+- `configureBaseSurveyIn` sends `<3D_AccLimit>` in **meters** (not tenths of a meter).
+- `setMessageRate` writes `$PQTMCFGMSGRATE,W,<MsgName>,<Rate>,<MsgVer>` (MsgVer 1, or 2 for PQTMEPE).
+- `enableRTCM(false)` uses `PAIR432,-1` to disable RTCM (0 means MSM4, not off).
 
 ## Version 0.2.4
 

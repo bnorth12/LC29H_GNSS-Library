@@ -67,6 +67,7 @@ That inventory should remain stable until the canonical 108-base list is checked
 - Done: raw ingress/egress helpers and bridge forwarding helpers
 - Done: bound NMEA assembly in `forwardBridgeAvailable` / `readLine` (v0.2.3) so a `$` inside RTCM cannot grow `String` until heap exhaustion
 - Done: reserve NMEA buffer, skip nested accuracy walk when `localNmeaOut` is set, and cap each pump at `kMaxBridgePumpMs` (v0.2.4)
+- Done: survey-in AccLimit in meters, MSGRATE includes MsgVer, PAIR432 disable is -1 (v0.2.5)
 - Next: family metadata entries for bridge-related command bases
 - Next: family-level docs for bridge modes and NMEA allowlists
 
