@@ -24,7 +24,7 @@ Shared and worth exposing in the library for DA/EA/BS bases: CFGSVIN, SAVEPAR, C
 Initial library skeleton is now implemented with:
 
 - GNSS transport on any Arduino Stream
-- Automatic NMEA-style checksum generation
+- Automatic NMEA-style checksum generation on TX (`makeSentence` / `nmeaChecksum`) and a public RX check (`hasValidNmeaChecksum`) so apps do not duplicate XOR/`*HH` logic
 - Command send helpers for PQTM and PAIR payloads
 - Receiver mode helpers
   - Rover: PQTMCFGRCVRMODE,W,1

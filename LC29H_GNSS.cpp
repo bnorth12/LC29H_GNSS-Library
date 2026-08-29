@@ -48,34 +48,7 @@ String nmeaHead(const String& line) {
     return line.substring(1, comma);
 }
 
-bool hasValidNmeaChecksum(const String& line) {
-    String trimmed = line;
-    trimmed.trim();
-    if (trimmed.length() < 5 || (trimmed[0] != '$' && trimmed[0] != '!')) {
-        return false;
-    }
 
-    const int star = trimmed.indexOf('*');
-    if (star <= 1 || star + 3 != static_cast<int>(trimmed.length())) {
-        return false;
-    }
-
-    uint8_t checksum = 0;
-    for (int index = 1; index < star; ++index) {
-        checksum ^= static_cast<uint8_t>(trimmed.charAt(index));
-    }
-
-    auto hexValue = [](char value) -> int {
-        if (value >= '0' && value <= '9') return value - '0';
-        if (value >= 'A' && value <= 'F') return value - 'A' + 10;
-        if (value >= 'a' && value <= 'f') return value - 'a' + 10;
-        return -1;
-    };
-
-    const int high = hexValue(trimmed.charAt(star + 1));
-    const int low = hexValue(trimmed.charAt(star + 2));
-    return high >= 0 && low >= 0 && checksum == static_cast<uint8_t>((high << 4) | low);
-}
 
 static bool parseFloatField(const String& s, float& out) {
     if (s.length() == 0) {
@@ -1912,7 +1885,7 @@ size_t LC29H_GNSS::forwardBridgeAvailable(
             if (by == '\n') {
                 String line = state.nmeaLine;
                 if (line.length() > 0) {
-                    if (!hasValidNmeaChecksum(line)) {
+                    if (!LC29H_GNSS::hasValidNmeaChecksum(line)) {
                         state.nmeaLine = "";
                         state.state = BridgeParserState::Idle;
                         continue;
@@ -2175,6 +2148,41 @@ uint8_t LC29H_GNSS::nmeaChecksum(const String& payloadWithoutDollarOrChecksum) {
         sum ^= static_cast<uint8_t>(payloadWithoutDollarOrChecksum[i]);
     }
     return sum;
+}
+
+bool LC29H_GNSS::hasValidNmeaChecksum(const String& line) {
+    String trimmed = line;
+    trimmed.trim();
+    if (trimmed.length() < 5 || (trimmed[0] != '$' && trimmed[0] != '!')) {
+        return false;
+    }
+
+    const int star = trimmed.indexOf('*');
+    if (star <= 1 || star + 3 != static_cast<int>(trimmed.length())) {
+        return false;
+    }
+
+    uint8_t checksum = 0;
+    for (int index = 1; index < star; ++index) {
+        checksum ^= static_cast<uint8_t>(trimmed.charAt(index));
+    }
+
+    auto hexValue = [](char value) -> int {
+        if (value >= '0' && value <= '9') {
+            return value - '0';
+        }
+        if (value >= 'A' && value <= 'F') {
+            return value - 'A' + 10;
+        }
+        if (value >= 'a' && value <= 'f') {
+            return value - 'a' + 10;
+        }
+        return -1;
+    };
+
+    const int high = hexValue(trimmed.charAt(star + 1));
+    const int low = hexValue(trimmed.charAt(star + 2));
+    return high >= 0 && low >= 0 && checksum == static_cast<uint8_t>((high << 4) | low);
 }
 
 bool LC29H_GNSS::isNmeaSentence(const String& line) {

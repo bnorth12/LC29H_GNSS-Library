@@ -568,7 +568,12 @@ public:
     static String buildPayload(const String& command, const String& argsCsv = "");
     static String buildPayload(const String& command, const String* args, size_t argCount);
     static String makeSentence(const String& payloadWithoutDollarOrChecksum);
+    // XOR of payload bytes between '$' and '*', as used on TX.
     static uint8_t nmeaChecksum(const String& payloadWithoutDollarOrChecksum);
+    // True if line is $...*HH or !...*HH and the two hex digits match the XOR. Use on RX
+    // before parsing; the UART bridge already drops failures, apps should still check
+    // any other NMEA path.
+    static bool hasValidNmeaChecksum(const String& line);
     static bool isNmeaSentence(const String& line);
 
 private:
