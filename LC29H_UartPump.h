@@ -13,7 +13,8 @@
 // Priority 0/1/2 and aging limits are policy: the sketch fills PriorityTable.
 //
 // Level 0 = mission (RTCM frames). FIFO; drop oldest if full.
-// Level 1 = needed status (RMC/GGA/SVIN). One mailbox each; newer overwrites unread.
+// Level 1 = needed status (RMC/GGA/SVIN) plus other PQTM/PAIR replies (VERNO/SN/UNIQID).
+//           One mailbox each; newer overwrites unread.
 // Level 2 = extras (GSV group, GSA, GST, EPE). Latest-wins. GSV ages after skipLimit
 // skipped process cycles so sky view cannot starve forever, but it never preempts RTCM.
 
@@ -71,6 +72,8 @@ public:
     const PriorityTable& priorities() const { return _pri; }
 
     // Copy bytes out of UART into the drain ring. No parse. tap is optional (traffic log).
+    // Uses Stream::readBytes in 128-byte chunks so a locked dump Stream is not
+    // acquired once per character (that blocked the UART ISR and overflowed the FIFO).
     size_t drain(Stream& uart, Stream* tap = nullptr);
     // Split drain ring into RTCM FIFO + NMEA mailboxes. XOR-check NMEA here (no heap).
     void frame();
@@ -78,6 +81,8 @@ public:
     uint8_t processRtcm(uint32_t budgetMs, RtcmHandler rtcm, void* user);
     // Level 1 then due-GSV then extras. budgetMs 0 still delivers needed status.
     uint8_t processNmea(uint32_t budgetMs, NmeaHandler nmea, void* user);
+    // Drop unread NMEA mailboxes without routing. Used when DRAM is too low to parse.
+    void discardNmeaMailboxes();
     // Deliver RTCM then NMEA until budgetMs. Convenience for sketches that do not split crumbs.
     uint8_t process(uint32_t budgetMs, RtcmHandler rtcm, NmeaHandler nmea, void* user);
 
@@ -143,6 +148,7 @@ private:
     LineSlot _gst{};
     LineSlot _gsa{};
     LineSlot _epe{};
+    LineSlot _other{};
 
     char _gsvLines[kGsvMax][kLineMax] = {};
     uint8_t _gsvCount = 0;

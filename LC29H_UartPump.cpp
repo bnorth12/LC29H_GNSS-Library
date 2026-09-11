@@ -8,6 +8,20 @@ uint16_t Pump::drainFill() const {
     return static_cast<uint16_t>(_dCount);
 }
 
+void Pump::discardNmeaMailboxes() {
+    _rmc.pending = false;
+    _gga.pending = false;
+    _svin.pending = false;
+    _gst.pending = false;
+    _gsa.pending = false;
+    _epe.pending = false;
+    _other.pending = false;
+    _gsvCount = 0;
+    _gsvPending = false;
+    _gsvDue = false;
+    _gsvSkipped = 0;
+}
+
 void Pump::pushDrainByte(uint8_t b) {
     if (_dCount >= kDrainCap) {
         _dTail = (_dTail + 1U) % kDrainCap;
@@ -46,14 +60,10 @@ size_t Pump::drain(Stream& uart, Stream* tap) {
         if (want > sizeof(tmp)) {
             want = sizeof(tmp);
         }
-        size_t got = 0;
-        while (got < want) {
-            const int c = uart.read();
-            if (c < 0) {
-                break;
-            }
-            tmp[got++] = static_cast<uint8_t>(c);
-        }
+        // One Stream::readBytes per chunk. Per-byte read() takes a lock (or
+        // disables ISRs) on every character when the sketch wraps UART in a
+        // dump sponge; that overflowed the HW FIFO and PANICed drain_uart.
+        const size_t got = uart.readBytes(reinterpret_cast<char*>(tmp), want);
         if (got == 0) {
             break;
         }
@@ -155,6 +165,9 @@ void Pump::postLine(Kind kind, const char* line) {
     case Kind::Epe:
         slot = &_epe;
         break;
+    case Kind::Other:
+        slot = &_other;
+        break;
     default:
         return;
     }
@@ -208,7 +221,7 @@ void Pump::onNmeaComplete() {
     const Kind kind = classify(line);
     if (kind == Kind::Gsv) {
         postGsv(line);
-    } else if (kind != Kind::Other) {
+    } else {
         postLine(kind, line);
     }
     _nmeaLen = 0;
@@ -315,6 +328,7 @@ bool Pump::deliverSlot(LineSlot& slot, NmeaHandler nmea, void* user) {
     if (!slot.pending || nmea == nullptr) {
         return false;
     }
+    slot.line[kLineMax - 1] = '\0';
     nmea(slot.line, user);
     slot.pending = false;
     slot.skipped = 0;
@@ -367,6 +381,11 @@ uint8_t Pump::processNmea(uint32_t budgetMs, NmeaHandler nmea, void* user) {
         ++delivered;
     }
     if (deliverSlot(_gga, nmea, user)) {
+        ++delivered;
+    }
+    // PQTMVERNO / PQTMSN / PQTMUNIQID / PAIR001 land here. Deliver with needed
+    // status so identity queries are not dropped when extras lose the 2 ms budget.
+    if (deliverSlot(_other, nmea, user)) {
         ++delivered;
     }
     // budget 0 still delivered needed status above. Extras wait for leftover time.
