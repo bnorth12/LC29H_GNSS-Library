@@ -22,7 +22,7 @@ Edit `lc29hconfig.h` in this folder. `LC29H_CFG_SURVEY_MIN_TIME_SEC` is MinDur (
 
 ## Messages this sketch uses
 
-Full field notes: [Module messages in practice](../../Readme.md#module-messages-in-practice).
+Full field notes: [Module messages in practice](../../README.md#module-messages-in-practice).
 
 **To the module**
 

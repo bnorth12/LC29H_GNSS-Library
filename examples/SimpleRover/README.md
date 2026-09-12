@@ -1,34 +1,32 @@
 # SimpleRover
 
-Smallest rover sketch. Highest priorities: **accept RTCM corrections** and **publish GGA (position) and RMC (time)** every navigation epoch for a GIS mapping tool. GST/GSA/ZDA run about 1 Hz; GSV every 10 s.
+Smallest rover. **RTCM in first**, then NMEA out. ESP32 uses `LC29H_UartPump` (not unbounded `readLine`).
 
-## What it does
+## Boot
 
-1. Applies the UAS rover profile from `lc29hconfig.h` (fix interval, default 200 ms).
-2. `LC29H_bringUp()` then sets GIS NMEA rates and SAVEPAR. PAIR023 only if the profile needs a module reboot.
-3. **ESP32:** Serial2 is the correction UART. Every loop it `ingestRawAvailable()` **first**, then prints NMEA. Do not let printing starve corrections.
-4. **AVR:** NMEA only. Use RoverCorrectionBridge if you need a second UART for RTCM.
+`LC29H_bringUp()`:
+
+1. `$PQTMVERNO` → logs `Module family=`
+2. Family policy (DA: 1 Hz, `PAIR081,0`)
+3. Rover mode, GIS or phone rates, SAVEPAR, PAIR023 if this IC needs it
+
+Swap the module later: Serial `module_reinit rover`, wait 3 s, `module_ident`.
+
+## Loop (ESP32)
+
+1. `ingestRawAvailable` on the correction UART (or CRC-assemble if you use `LC29H_Rtcm`)
+2. `uartPump.drain` / `frame` / `processNmea` with a millisecond budget
+3. Do not print every GSV line on USB; it will overflow the GNSS RX FIFO
+
+AVR: NMEA only; no pump. Use RoverCorrectionBridge for a second UART.
 
 ## Hardware
 
-- ESP32: GNSS Serial1 RX16/TX17, corrections Serial2 RX5/TX4.
-- Mega-class AVR: GNSS SoftwareSerial RX4/TX3. On Mega the Serial `help` command loop is compiled out so the sketch fits in 8 kB SRAM.
+- ESP32: GNSS Serial1 RX16/TX17, corrections Serial2 RX5/TX4 (edit `lc29hconfig.h`)
+- Mega: GNSS SoftwareSerial RX4/TX3. `help` is compiled out on Mega to fit SRAM.
 
-## Config
+## Messages
 
-`LC29H_CFG_FIX_RATE_MS` is the rover epoch. GGA/RMC/VTG use RATE 1 (every epoch). GSV RATE is chosen so the sentence is about every 10 s at that fix rate.
+See [Module messages in practice](../../README.md#module-messages-in-practice) and [GETTING_STARTED.md](../../GETTING_STARTED.md).
 
-## Messages this sketch uses
-
-Full field notes: [Module messages in practice](../../Readme.md#module-messages-in-practice).
-
-**To the module**
-
-- `PQTMCFGRCVRMODE,W,1` and `PQTMCFGFIXRATE,W,<ms>` (rover epoch).
-- GIS `PQTMCFGMSGRATE`: GGA/RMC/VTG RATE 1; GST/GSA/ZDA ~1 Hz; GSV ~10 s; `PQTMPVT`/`PQTMVEL`/`PQTMDOP`/`PQTMSTD` RATE 0 (GIS uses NMEA).
-- `PQTMSAVEPAR`, and `PAIR023` only if the profile needs a reboot.
-
-**From / into the module**
-
-- **In:** raw RTCM on Serial2 (ESP32) — highest priority in `loop()`.
-- **Out:** GGA (position) and RMC (time) every epoch for GIS; VTG; GST/GSA/ZDA slower; GSV sparse.
+DA often has **no GST**; GGA DiffAge/station ID stay empty. Phone GIS: GGA + RMC + GSA + `$PQTMEPE` (host may build GST).

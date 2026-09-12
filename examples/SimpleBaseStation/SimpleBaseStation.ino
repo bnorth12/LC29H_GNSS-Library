@@ -1,5 +1,8 @@
 #include <LC29H_GNSS.h>
 #include <LC29H_ProjectConfig.h>
+#if defined(ARDUINO_ARCH_ESP32)
+#include <LC29H_HostPump.h>
+#endif
 
 // Simple survey-base bring-up. Not a full NTRIP/Wi-Fi app.
 //
@@ -42,6 +45,9 @@ public:
 };
 
 LC29H_GNSS gnss(gnssPort, &Serial);
+#if defined(ARDUINO_ARCH_ESP32)
+LC29H_UartPump::Pump uartPump;
+#endif
 DiscardStream discardRtcm;
 LC29H_GNSS::BridgeState bridgeState;
 LC29H_GNSS::BridgeStats bridgeStats;
@@ -69,7 +75,8 @@ void setup() {
     delay(250);
 
 #if defined(ARDUINO_ARCH_ESP32)
-    LC29H_beginEsp32GnssUart(gnssPort, kGnssBaud, kGnssRxPin, kGnssTxPin);
+    LC29H_HostPump::beginGnss(
+        gnssPort, kGnssBaud, kGnssRxPin, kGnssTxPin, uartPump, LC29H_UartPump::baseStationPriorities());
 #else
     gnssPort.begin(kGnssBaud);
 #endif
@@ -109,7 +116,11 @@ void loop() {
         return;
     }
 
-    // Pump every loop. Print complete NMEA after the parser; do not parse here.
+#if defined(ARDUINO_ARCH_ESP32)
+    // ESP32: pump (FIFO). AVR: forwardBridgeAvailable (15 ms cap, no 8 kB ring).
+    LC29H_HostPump::tick(gnssPort, uartPump);
+    LC29H_HostPump::processTo(uartPump, nullptr, &Serial);
+#else
     gnss.forwardBridgeAvailable(
         discardRtcm,
         bridgeState,
@@ -120,4 +131,5 @@ void loop() {
         0,
         &Serial,
         nullptr);
+#endif
 }

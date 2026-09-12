@@ -6,11 +6,13 @@
 // High-level driver for Quectel LC29H/LC79H command workflows.
 //
 // Design choices:
-// - Keep transport generic by depending only on Arduino Stream.
-// - Keep command encoding simple: payload -> NMEA sentence with checksum.
-// - Provide two layers:
-//   1) low-level send/query helpers for custom control
-//   2) preset/profile helpers for repeatable field setups
+// - Transport is Arduino Stream only (HardwareSerial, USB CDC, SoftwareSerial).
+// - Commands are payload -> $...*cs. sendPayload does not wait for OK; a live
+//   NMEA flood will starve queryAndWaitLine (VerifyFailed with a working DA).
+// - One GNSS UART: do not mix readLine/query* with a pump on the same Stream.
+// - SAVEPAR is not a reboot. DA/EA CFGSVIN and CFGRCVRMODE need PAIR023.
+// - Two layers: send/query helpers, and presets/profiles for field setups.
+// See GETTING_STARTED.md. Quectel PDFs remain required.
 class LC29H_GNSS {
 public:
     enum class ErrorCode {
@@ -407,6 +409,8 @@ public:
     bool setReceiverModeBase();
     bool queryReceiverMode();
 
+    // RATE is every N navigation epochs, not Hz. Omit MsgVer for GGA/RMC (DA);
+    // PQTM names still send MsgVer (2 for PQTMEPE). GSV is one family, all talkers.
     bool setMessageRate(const String& messageName, uint8_t port, uint8_t rate);
     bool queryMessageRate(const String& messageName, uint8_t port = 1);
     bool enableMessageOutput(const String& messageName, uint8_t port = 1);
@@ -414,6 +418,8 @@ public:
 
     bool setConstellations(bool gps, bool glo, bool gal, bool bds, bool qzss = false, bool navic = false);
     bool queryConstellations();
+    // PQTMCFGNAVMODE. 0 = normal. Fitness (1) has left LC29H(DA) in DGPS/float
+    // with 1005+MSM7 on the wire. Rover factory boot also sends PAIR081,0.
     bool setNavMode(uint8_t mode);
     bool queryNavMode();
     bool setNmeaPrecision(uint8_t ggaDp = 3, uint8_t gsvDp = 6, uint8_t gsaDp = 1, uint8_t rmcDp = 2, uint8_t vtgDp = 3, uint8_t zdaDp = 2);
@@ -460,14 +466,15 @@ public:
     bool queryGeoFenceStatus();
     bool queryOdometer();
 
-    // Query helpers that return parsed values for app-level control logic.
+    // Waits for a prefix on the GNSS Stream. Will time out if NMEA is flooding
+    // (typical after bring-up). Drain with UartPump or set VERIFY=0 on live DA.
     bool queryAndWaitLine(const String& queryPayload, const String& expectedPrefix, String& outLine, uint32_t timeoutMs = 1500);
     bool getReceiverMode(uint8_t& outMode, uint32_t timeoutMs = 1500);
     bool getFixRateMs(uint32_t& outFixRateMs, uint32_t timeoutMs = 1500);
     bool getBaudRate(uint32_t& outBaudRate, uint8_t uartPort = 1, uint32_t timeoutMs = 1500);
     bool getMessageRate(const String& messageName, uint8_t& outRate, uint8_t port = 1, uint32_t timeoutMs = 1500);
 
-    // Enables/disables RTCM stream family controls used in the reference workflows.
+    // PAIR432/434. Enable = MSM7+1005. Disable uses PAIR432,-1 (0 means MSM4, not off).
     bool enableRTCM(bool enable = true);
 
     // Preset-level workflows for common setup paths.
@@ -481,6 +488,8 @@ public:
     // applySurveyBaseProfile enables PQTMSVINSTATUS at RATE 1. Callers should then
     // apply LC29H_MessageSchedule::applyBaseStatusRates(), SAVEPAR, and rebootModule()
     // unless getSurveyInConfig() shows a matching live SVIN (do not PAIR023 that).
+    // verify=true readbacks PQTM. On a live DA this often VerifyFailed even when
+    // writes succeeded. Phone/BLE rovers should pass verify=false.
     ProfileResult applyUasRoverProfile(uint32_t fixRateMs = 200, bool save = true, bool verify = true);
     ProfileResult applySurveyBaseProfile(uint32_t minTimeSec = 300, float minStdDevM = 15.0f, bool enableRtcm = true, bool save = true, bool verify = true);
     ProfileResult applyStaticBaseProfile(double latDeg, double lonDeg, double altM, bool enableRtcm = true, bool save = true, bool verify = true);
@@ -499,7 +508,8 @@ public:
     // or full sentence with existing checksum.
     bool sendSentence(const String& sentenceMaybeWithChecksum);
 
-    // Raw byte path for RTCM/NMEA passthrough use cases.
+    // Raw bytes, no CRC. For BLE/UART RTCM that arrives in chunks, assemble with
+    // LC29H_Rtcm first; dumping partial 0xD3 frames poisons the module parser.
     size_t writeRaw(const uint8_t* data, size_t len);
     size_t ingestRawAvailable(
         Stream& in,
@@ -573,6 +583,7 @@ public:
     // True if line is $...*HH or !...*HH and the two hex digits match the XOR. Use on RX
     // before parsing; the UART bridge already drops failures, apps should still check
     // any other NMEA path. The const char* overload does not allocate (UART drain path).
+    // XOR of bytes between $ and *. The pump calls this before a line is used.
     static bool hasValidNmeaChecksum(const char* line);
     static bool hasValidNmeaChecksum(const String& line);
     static bool isNmeaSentence(const String& line);

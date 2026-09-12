@@ -15,7 +15,7 @@ Serial1 when present; otherwise SoftwareSerial RX4/TX3.
 
 ## Messages this sketch uses
 
-You type the payloads. Same meanings as [Module messages in practice](../../Readme.md#module-messages-in-practice).
+You type the payloads. Same meanings as [Module messages in practice](../../README.md#module-messages-in-practice).
 
 Typical DA survey-in:
 

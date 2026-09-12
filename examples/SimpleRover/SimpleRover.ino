@@ -1,12 +1,18 @@
 #include <LC29H_GNSS.h>
 #include <LC29H_ProjectConfig.h>
+#if defined(ARDUINO_ARCH_ESP32)
+#include <LC29H_UartPump.h>
+#endif
 
-// Simple rover: ingest RTCM corrections, publish GGA (position) and RMC (time)
-// every epoch for GIS mapping tools. GST/GSA/ZDA ~1 Hz, GSV every 10 s.
+// Simple rover: RTCM in is the mission; GGA/RMC out for GIS.
 //
-// ESP32: GNSS on Serial1, correction UART on Serial2. Ingest corrections first
-// every loop, then drain NMEA. AVR: NMEA only; use RoverCorrectionBridge for RTCM in.
-// Message payloads: this folder's README and library Readme "Module messages in practice".
+// Why ESP32 uses UartPump instead of while(readLine): a live LC29H can emit
+// GSV+GSA faster than Serial.println. Unbounded readLine starves the correction
+// UART and overflows the GNSS RX FIFO. Drain/frame every loop; ingest RTCM first.
+//
+// Boot calls LC29H_bringUp() which identifies PQTMVERNO, then rover mode,
+// SAVEPAR, PAIR023 on DA/EA. Swap modules later: Serial "module_reinit rover".
+// AVR: no pump (SRAM). NMEA only; use RoverCorrectionBridge for a second UART.
 //
 // Minimum verified hardware:
 // - Arduino Mega 2560 class (AVR Uno/Nano class boards run out of RAM)
@@ -37,6 +43,9 @@ SoftwareSerial gnssPort(kGnssRxPin, kGnssTxPin);
 
 LC29H_GNSS gnss(gnssPort, &Serial);
 LC29H_GNSS::RawIngressStats corrStats;
+#if defined(ARDUINO_ARCH_ESP32)
+LC29H_UartPump::Pump uartPump;
+#endif
 bool exampleEnabled = false;
 uint32_t lastStatusMs = 0;
 
@@ -62,6 +71,8 @@ void setup() {
 
 #if defined(ARDUINO_ARCH_ESP32)
     LC29H_beginEsp32GnssUart(gnssPort, kGnssBaud, kGnssRxPin, kGnssTxPin);
+    gnssPort.setTimeout(0);
+    uartPump.setPriorities(LC29H_UartPump::roverGisPriorities());
     corrPort.begin(kCorrBaud, SERIAL_8N1, kCorrRxPin, kCorrTxPin);
 #else
     gnssPort.begin(kGnssBaud);
@@ -87,7 +98,8 @@ void setup() {
     }
 
     exampleEnabled = true;
-    gnss.queryVersion();
+    Serial.print("Detected module family=");
+    Serial.println(LC29H_NmeaCompat::familyName(bringUp.identity.family));
     gnss.queryReceiverMode();
     gnss.queryFixRate();
 #if defined(ARDUINO_ARCH_ESP32)
@@ -110,14 +122,21 @@ void loop() {
     }
 
 #if defined(ARDUINO_ARCH_ESP32)
-    // Corrections first. Do not let NMEA printing starve RTCM ingress.
+    // Corrections first. Printing NMEA before this will drop MSM/1005.
     gnss.ingestRawAvailable(corrPort, 0, &corrStats, 256);
-#endif
-
+    uartPump.drain(gnssPort);  // empty the driver FIFO (overwrite-oldest ring)
+    uartPump.frame();          // NMEA XOR + RTCM length; bad checksums counted
+    uartPump.processNmea(8, [](const char* line, void*) {
+        if (line != nullptr) {
+            Serial.println(line);
+        }
+    }, nullptr);
+#else
     String line;
     while (gnss.readLine(line, 0)) {
         Serial.println(line);
     }
+#endif
 
 #if defined(ARDUINO_ARCH_ESP32)
     const uint32_t now = millis();

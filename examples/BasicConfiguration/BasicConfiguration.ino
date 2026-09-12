@@ -1,5 +1,8 @@
 #include <LC29H_GNSS.h>
 #include <LC29H_ProjectConfig.h>
+#if defined(ARDUINO_ARCH_ESP32)
+#include <LC29H_HostPump.h>
+#endif
 
 // Interactive reference: bring-up, queries, and Serial Monitor commands.
 // Same DA survey rules as SimpleBaseStation (adopt live SVIN, AccLimit 15,
@@ -30,6 +33,9 @@ SoftwareSerial gnssPort(kGnssRxPin, kGnssTxPin);
 #endif
 
 LC29H_GNSS gnss(gnssPort, &Serial);
+#if defined(ARDUINO_ARCH_ESP32)
+LC29H_UartPump::Pump uartPump;
+#endif
 
 const char* profileStatusName(LC29H_GNSS::ProfileStatus status) {
     switch (status) {
@@ -67,7 +73,8 @@ void setup() {
     delay(250);
 
 #if defined(ARDUINO_ARCH_ESP32)
-    LC29H_beginEsp32GnssUart(gnssPort, kGnssBaud, kGnssRxPin, kGnssTxPin);
+    LC29H_HostPump::beginGnss(
+        gnssPort, kGnssBaud, kGnssRxPin, kGnssTxPin, uartPump, LC29H_UartPump::baseStationPriorities());
 #else
     gnssPort.begin(kGnssBaud);
 #endif
@@ -119,6 +126,21 @@ void loop() {
     gnss.processSerialCommands();
 #endif
 
+#if defined(ARDUINO_ARCH_ESP32)
+    // Drain GNSS even while you type help. A parked readLine lets GSV fill the FIFO.
+    LC29H_HostPump::tick(gnssPort, uartPump);
+    uartPump.processNmea(8, [](const char* line, void*) {
+        if (line == nullptr) {
+            return;
+        }
+        LC29H_GNSS::PairAck ack;
+        if (LC29H_GNSS::tryParsePairAck(String(line), ack)) {
+            LC29H_GNSS::printPairAck(Serial, ack, "ACK");
+        } else {
+            Serial.println(line);
+        }
+    }, nullptr);
+#else
     String line;
     if (gnss.readLine(line, 0)) {
         LC29H_GNSS::PairAck ack;
@@ -128,4 +150,5 @@ void loop() {
             Serial.println(line);
         }
     }
+#endif
 }

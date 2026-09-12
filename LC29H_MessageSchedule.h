@@ -78,4 +78,24 @@ inline bool applyRoverGisRates(LC29H_GNSS& gnss, uint32_t fixIntervalMs) {
     return ok;
 }
 
+// Phone GIS (SW Maps Generic NMEA): 1 Hz GGA/RMC/GSA + PQTMEPE (host may
+// synthesize GST). GSV/VTG off so UART and BLE can drain. DA has no GST.
+inline bool applyRoverPhoneRates(LC29H_GNSS& gnss) {
+    bool ok = true;
+    ok = gnss.setMessageRate("GGA", 1, 1) && ok;
+    ok = gnss.setMessageRate("RMC", 1, 1) && ok;
+    ok = gnss.setMessageRate("GSA", 1, 1) && ok;
+    ok = gnss.setMessageRate("GST", 1, 1) && ok;
+    ok = gnss.setMessageRate("PQTMEPE", 1, 1) && ok;
+    ok = gnss.setMessageRate("GSV", 1, 0) && ok;
+    ok = gnss.setMessageRate("VTG", 1, 0) && ok;
+    ok = gnss.setMessageRate("GLL", 1, 0) && ok;
+    ok = gnss.setMessageRate("ZDA", 1, 0) && ok;
+    ok = gnss.setMessageRate("PQTMPVT", 1, 0) && ok;
+    ok = gnss.setMessageRate("PQTMVEL", 1, 0) && ok;
+    ok = gnss.setMessageRate("PQTMDOP", 1, 0) && ok;
+    ok = gnss.setMessageRate("PQTMSTD", 1, 0) && ok;
+    return ok;
+}
+
 }  // namespace LC29H_MessageSchedule

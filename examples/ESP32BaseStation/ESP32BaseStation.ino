@@ -1,5 +1,6 @@
 #include <LC29H_GNSS.h>
 #include <LC29H_ProjectConfig.h>
+#include <LC29H_HostPump.h>
 
 // ESP32 survey-base: GNSS on Serial1, RTCM forwarded on Serial2. Not Wi-Fi/NTRIP.
 //
@@ -31,6 +32,7 @@ HardwareSerial& gnssPort = Serial1;
 HardwareSerial& rtcmPort = Serial2;
 
 LC29H_GNSS gnss(gnssPort, &Serial);
+LC29H_UartPump::Pump uartPump;
 LC29H_GNSS::BridgeState bridgeState;
 LC29H_GNSS::BridgeStats bridgeStats;
 LC29H_GNSS::BridgeMode bridgeMode = LC29H_GNSS::BridgeMode::RtcmAndNmeaAllowlist;
@@ -61,7 +63,8 @@ void setup() {
     Serial.begin(kConsoleBaud);
     delay(250);
 
-    LC29H_beginEsp32GnssUart(gnssPort, kGnssBaud, kGnssRxPin, kGnssTxPin);
+    LC29H_HostPump::beginGnss(
+        gnssPort, kGnssBaud, kGnssRxPin, kGnssTxPin, uartPump, LC29H_UartPump::baseStationPriorities());
     rtcmPort.begin(kRtcmBaud, SERIAL_8N1, kRtcmRxPin, kRtcmTxPin);
 
     gnss.attachConsole(Serial);
@@ -122,30 +125,25 @@ void loop() {
     }
 
     Stream* localNmeaOut = nullptr;
-    Stream* localRawOut = nullptr;
-
     if (debugMode == LC29H_GNSS::LocalDebugOutputMode::NmeaOnly) {
         localNmeaOut = &Serial;
-    } else if (debugMode == LC29H_GNSS::LocalDebugOutputMode::RawBinary) {
-        localRawOut = &Serial;
     }
 
-    // Pump every loop. Printing NMEA here is OK for a bench example; do not parse
-    // Strings, walk survey history, or write flash inside this callback.
-    gnss.forwardBridgeAvailable(
-        rtcmPort,
-        bridgeState,
-        bridgeMode,
-        bridgeFilter,
-        bridgeFilterEnabled,
-        &bridgeStats,
-        0,
-        localNmeaOut,
-        localRawOut);
+    // drain/frame the GNSS UART, then RTCM out Serial2 (mission), NMEA optional.
+    // Do not while(readLine) here: MSM7 will overflow before GGA is printed.
+    LC29H_HostPump::tick(gnssPort, uartPump);
+    LC29H_HostPump::processTo(uartPump, &rtcmPort, localNmeaOut);
 
     const uint32_t now = millis();
     if ((now - lastStatusMs) >= kStatusIntervalMs) {
-        LC29H_GNSS::printBridgeStatus(Serial, "ESP32BaseStation", bridgeMode, bridgeStats, now);
+        Serial.print("ESP32BaseStation: drainOvf=");
+        Serial.print(uartPump.drainOverruns());
+        Serial.print(", rtcmDrops=");
+        Serial.print(uartPump.rtcmDrops());
+        Serial.print(", nmeaCkFail=");
+        Serial.print(uartPump.checksumFails());
+        Serial.print(", uptimeMs=");
+        Serial.println(now);
         lastStatusMs = now;
     }
 }

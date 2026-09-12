@@ -21,4 +21,4 @@ Toggles in this folder’s `lc29hconfig.h`: `APPLY_PROJECT_CONFIG`, `STRICT_OWNE
 
 **Default:** none. The sketch is a raw UART pipe. QGNSS on the CH340 sends whatever PQTM/PAIR it wants.
 
-If you set `APPLY_PROJECT_CONFIG`, `LC29H_bringUp()` sends the survey-base or rover set described in [Module messages in practice](../../Readme.md#module-messages-in-practice). That fights QGNSS if both are connected.
+If you set `APPLY_PROJECT_CONFIG`, `LC29H_bringUp()` sends the survey-base or rover set described in [Module messages in practice](../../README.md#module-messages-in-practice). That fights QGNSS if both are connected.

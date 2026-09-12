@@ -1,5 +1,8 @@
 #include <LC29H_GNSS.h>
 #include <LC29H_ProjectConfig.h>
+#if defined(ARDUINO_ARCH_ESP32)
+#include <LC29H_HostPump.h>
+#endif
 
 // Bench base pair: parse GNSS UART and forward RTCM to a rover on a second UART.
 // LC29H_bringUp() adopts a matching live SVIN or starts survey-in. RTCM stays 1 Hz.
@@ -37,6 +40,9 @@ SoftwareSerial roverLinkPort(kLinkRxPin, kLinkTxPin);
 #endif
 
 LC29H_GNSS gnss(gnssPort, &Serial);
+#if defined(ARDUINO_ARCH_ESP32)
+LC29H_UartPump::Pump uartPump;
+#endif
 LC29H_GNSS::BridgeState bridgeState;
 LC29H_GNSS::BridgeStats bridgeStats;
 LC29H_GNSS::BridgeMode bridgeMode = LC29H_GNSS::BridgeMode::RtcmAndNmeaAllowlist;
@@ -52,7 +58,8 @@ void setup() {
     delay(250);
 
 #if defined(ARDUINO_ARCH_ESP32)
-    LC29H_beginEsp32GnssUart(gnssPort, kGnssBaud, kGnssRxPin, kGnssTxPin);
+    LC29H_HostPump::beginGnss(
+        gnssPort, kGnssBaud, kGnssRxPin, kGnssTxPin, uartPump, LC29H_UartPump::baseStationPriorities());
     roverLinkPort.begin(kLinkBaud, SERIAL_8N1, kLinkRxPin, kLinkTxPin);
 #else
     gnssPort.begin(kGnssBaud);
@@ -109,7 +116,11 @@ void loop() {
         localRawOut = &Serial;
     }
 
-    // Pump every loop. Do not parse or write flash inside localNmeaOut.
+#if defined(ARDUINO_ARCH_ESP32)
+    // RTCM to the rover UART is the mission stream; NMEA is optional debug.
+    LC29H_HostPump::tick(gnssPort, uartPump);
+    LC29H_HostPump::processTo(uartPump, &roverLinkPort, localNmeaOut);
+#else
     gnss.forwardBridgeAvailable(
         roverLinkPort,
         bridgeState,
@@ -120,6 +131,7 @@ void loop() {
         0,
         localNmeaOut,
         localRawOut);
+#endif
 
     const uint32_t now = millis();
     if ((now - lastStatusMs) >= kStatusIntervalMs) {

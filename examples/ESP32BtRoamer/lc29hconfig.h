@@ -18,7 +18,11 @@
 // GENERIC OPTIONS (all roles)
 // -----------------------------------------------------------------------------
 #define LC29H_CFG_SAVE 1
-#define LC29H_CFG_VERIFY 1
+// Boot: RESTOREPAR, rover mode, NMEA rates, SAVEPAR, PAIR023 (same order as the base).
+#define LC29H_CFG_ESP32_BT_RUN_BRINGUP 1
+// DA NMEA traffic can starve PQTM query replies during setup. Skip live
+// verify so SAVEPAR + PAIR023 can apply; UART sniffer already proves RX.
+#define LC29H_CFG_VERIFY 0
 #define LC29H_CFG_ENABLE_RTCM 1
 
 #define LC29H_CFG_BRIDGE_MODE_FORWARD_ALL 0
@@ -46,13 +50,16 @@
 // -----------------------------------------------------------------------------
 // ROVER OPTIONS
 // -----------------------------------------------------------------------------
-#define LC29H_CFG_FIX_RATE_MS 200
+#define LC29H_CFG_FIX_RATE_MS 1000
 
-#define LC29H_CFG_ROVER_PRINT_LOCAL_NMEA 1
-// Set to 1 to send NMEA lines back to the connected Bluetooth app:
-// - SPP text lines on classic ESP32
-// - BLE notify text chunks on ESP32-S3
+#define LC29H_CFG_ROVER_PRINT_LOCAL_NMEA 0
 #define LC29H_CFG_ROVER_FORWARD_NMEA_TO_LINK 1
+
+// Phone GIS needs GGA (pos/alt/time/fix), RMC (time), GST (error).
+// GSV/GSA/VTG stay off the air so UART and BLE can drain.
+#define LC29H_CFG_BLE_NMEA_GGA_MS 1000
+#define LC29H_CFG_BLE_NMEA_RMC_MS 1000
+#define LC29H_CFG_BLE_NMEA_GST_MS 1000
 #define LC29H_CFG_ROVER_CORRECTION_CHUNK_SIZE 256
 #define LC29H_CFG_ROVER_ACCURACY_TRACK_ENABLE 0
 #define LC29H_CFG_ROVER_ACCURACY_TRACK_WINDOW_MIN 60
@@ -65,20 +72,35 @@
 #define LC29H_CFG_ESP32_BT_PIN ""
 
 // GNSS UART routing for this rover board.
-#define LC29H_CFG_ESP32_BT_GNSS_RX_PIN 16
-#define LC29H_CFG_ESP32_BT_GNSS_TX_PIN 17
+// ESP32-S3 N16R8: RX=17, TX=18 (avoid GPIO16 conflicts with onboard peripherals).
+#define LC29H_CFG_ESP32_BT_GNSS_RX_PIN 17
+#define LC29H_CFG_ESP32_BT_GNSS_TX_PIN 18
 #define LC29H_CFG_ESP32_BT_GNSS_BAUD 115200
+#define LC29H_CFG_ESP32_RX_BUFFER_SIZE 8192
+
+// Sketch-local GNSS UART sniffer. 1 = echo RX lines (and library TX debug)
+// to USB Serial. On ESP32-S3 also copies to UART0 (CH343). 0 = off.
+#ifndef LC29H_CFG_DEBUG_MIRROR_GNSS_UART
+#define LC29H_CFG_DEBUG_MIRROR_GNSS_UART 0
+#endif
+// 1 = 1 Hz status + events on ESP32-S3 UART0 (CH343 USB-C). Not native USB.
+#ifndef LC29H_CFG_DEBUG_UART0
+#define LC29H_CFG_DEBUG_UART0 1
+#endif
+
+// Sketch-local WS2812 status LED. ESP32-S3-DevKitC-1 RGB is GPIO 48.
+// Some S3 v1.1 boards use 38. Set to -1 to disable.
+#define LC29H_CFG_STATUS_RGB_PIN 48
 
 // -----------------------------------------------------------------------------
 // BASE STATION OPTIONS
 // -----------------------------------------------------------------------------
-// Unused unless ROLE is switched to BASE_SURVEY. AccLimit 15 m starts Obs on DA.
 #define LC29H_CFG_SURVEY_MIN_TIME_SEC 3600
-#define LC29H_CFG_SURVEY_MIN_STDDEV_M 15.0f
+#define LC29H_CFG_SURVEY_MIN_STDDEV_M 1.5f
 #define LC29H_CFG_BASE_ACCURACY_TRACK_ENABLE 0
 #define LC29H_CFG_BASE_ACCURACY_TRACK_WINDOW_SEC LC29H_CFG_SURVEY_MIN_TIME_SEC
 #define LC29H_CFG_BASE_ACCURACY_TRACK_MAX_POINTS 0
-#define LC29H_CFG_FINALIZE_SURVEY_TO_FIXED 0
+#define LC29H_CFG_FINALIZE_SURVEY_TO_FIXED 1
 #define LC29H_CFG_SURVEY_CAPTURE_TIMEOUT_MS 2000
 
 #define LC29H_CFG_BASE_LAT_DEG 33.259933

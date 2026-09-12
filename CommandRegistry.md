@@ -2,7 +2,7 @@
 
 Source notes:
 
-- Normalized from repository references in `Readme.md`, `CommandReference.md`, `ProtocolV15_Evaluation.md`, `LC29H_GNSS.h`, `LC29H_GNSS.cpp`, and example sketches.
+- Normalized from repository references in `README.md`, `CommandReference.md`, `ProtocolV15_Evaluation.md`, `LC29H_GNSS.h`, `LC29H_GNSS.cpp`, and example sketches.
 - The checked-in references currently expose 40 normalized command bases plus 1 transport helper row.
 - The protocol evaluation documents 108 unique bases in V1.5, so 68 slots remain unresolved until the canonical command-bases file is checked in.
 

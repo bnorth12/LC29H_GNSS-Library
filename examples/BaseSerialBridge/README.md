@@ -18,6 +18,6 @@ This folder’s `lc29hconfig.h`. Keep `LC29H_ROLE` as `LC29H_ROLE_BASE_SURVEY`.
 
 ## Messages this sketch uses
 
-Same **to GNSS** survey-base path as SimpleBaseStation. [Module messages in practice](../../Readme.md#module-messages-in-practice).
+Same **to GNSS** survey-base path as SimpleBaseStation. [Module messages in practice](../../README.md#module-messages-in-practice).
 
 **From GNSS:** RTCM MSM7+1005 **out the rover link** (that is the mission for the pair). Optional GGA locally.

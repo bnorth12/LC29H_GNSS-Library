@@ -72,6 +72,7 @@ That inventory should remain stable until the canonical 108-base list is checked
 - Done: AccLimit default 15 m, `rebootModule()` (PAIR023), examples pump + RATE 10 (v0.2.7)
 - Done: adopt live SVIN, base/rover message schedules, example READMEs (v0.2.8)
 - Done: library Readme module-message usage section for DA base/rover (v0.2.9)
+- Done: UART pump, RTCM CRC assembler, PQTMEPE→GST, rover factory bring-up with drain pauses (v0.2.15)
 - Next: family metadata entries for bridge-related command bases
 - Next: family-level docs for bridge modes and NMEA allowlists
 

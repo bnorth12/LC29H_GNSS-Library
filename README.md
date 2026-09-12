@@ -4,6 +4,10 @@
 
 Configuration-focused Arduino library for Quectel **LC29H(BA), LC29H(BS), LC29H(DA), and LC29H(EA)**. Wrappers exist for the union of those ICDs; not every command is legal on every variant (see **Module variants** below).
 
+**New adopter?** Start here, not at the version history: **[GETTING_STARTED.md](GETTING_STARTED.md)**. Then open one folder under `examples/` and that folder’s README. Changelog sections below 0.2.15 are historical.
+
+This library does **not** replace Quectel’s protocol/hardware PDFs or a general RTK introduction. Register on [Quectel Download Zone](https://www.quectel.com/download-zone) for the LC29H documents listed in GETTING_STARTED §7.
+
 ## Module variants
 
 Protocol sources: LC29H&LC79H Series GNSS Protocol Specification **v1.5** (BA/DA/EA and AA/CA/AL notes) and LC29H(BS) GNSS Protocol Specification **v1.1**.
@@ -59,6 +63,22 @@ Raw-data design note:
 - It can be used for configuration/control while raw GNSS/RTCM bytes are forwarded upstream.
 - Parsing can remain in dedicated libraries/apps (for example TinyGPS++, RTK parsers, SW Maps feeders, NTRIP bridge apps).
 
+## Version 0.2.15
+
+Field work on ESP32-S3 + LC29H(DA) + SW Maps BLE NUS:
+
+- `LC29H_Rtcm`: CRC-24Q assembler so BLE/UART RTCM is only `writeRaw`'d as complete frames. Log 1005 vs MSM4/MSM7.
+- `LC29H_NmeaCompat`: DA has no GST and empty GGA DiffAge/DiffStation. Synthesize `$GNGST` from `$PQTMEPE` for Generic NMEA apps. Parse module family from `PQTMVERNO`.
+- `applyRoverPhoneRates()`: 1 Hz GGA/RMC/GSA/PQTMEPE, GSV/VTG off so UART/BLE can drain.
+- `LC29H_roverFactoryBringUp()`: `RESTOREPAR` → rover mode → `PAIR081,0` → rates → `SAVEPAR` → `PAIR023`, with UART drain pauses (same order as a working base).
+- Default ESP32 GNSS RX buffer **8192**.
+- `ESP32BtRoamer` uses the pump, not unbounded `readLine`. Advertise only after GGA. Do not block USB CDC.
+- `SimpleRover` ESP32 path uses `LC29H_UartPump`.
+
+Do not verify rover config by reading back PQTM while NMEA is flooding (VerifyFailed with a live DA). Do not expect SW Maps to reassemble 20-byte BLE notifies.
+
+Identify the IC before SAVEPAR (`PQTMVERNO` / `LC29H_identifyModule`). DA, EA, BA, and BS do not take the same commands. After swapping modules, Serial `module_reinit rover` or `module_reinit base` restores, sets role, saves, and reboots.
+
 ## Version 0.2.14
 
 `LC29H_UartPump` keeps a latest-wins **Other** mailbox for NMEA/PQTM that is not RMC/GGA/SVIN/GST/GSA/GSV/EPE (`PQTMVERNO`, `PQTMSN`, `PQTMUNIQID`, `PAIR001`, …). Those lines used to be framed and discarded. Other is delivered with needed status so a 2 ms `processNmea` budget cannot drop identity replies.
@@ -84,7 +104,7 @@ Public `LC29H_GNSS::hasValidNmeaChecksum` so applications do not duplicate NMEA 
 
 ## Version 0.2.9
 
-Library Readme **Module messages in practice**: what each PQTM/PAIR/NMEA/RTCM item does in a base or rover sketch, RATE vs Hz, DA survey-in gotchas, and which example uses which payload. Example READMEs list the subset that sketch sends.
+This README **Module messages in practice**: what each PQTM/PAIR/NMEA/RTCM item does in a base or rover sketch, RATE vs Hz, DA survey-in gotchas, and which example uses which payload. Example READMEs list the subset that sketch sends.
 
 ## Version 0.2.8
 
@@ -368,26 +388,30 @@ Override behavior:
 
 ## Folder layout
 
-- LC29H_GNSS.h
-- LC29H_GNSS.cpp
-- LC29H_ProjectConfig.h
-- lc29hconfig.h.template
-- LC29H_MessageSchedule.h
-- examples/README.md (index; each sketch folder also has README.md)
-- examples (see that index for how each sketch uses the library)
-- CommandReference.md
+Arduino 1.0 (flat) layout: sources and metadata live in the library root, not `src/`. Arduino IDE 1.5+ still compiles this.
 
-Note: this repository currently keeps both source files and metadata/docs in the root directory.
+- `library.properties`, `keywords.txt`, `LICENSE`, `README.md` — Library Manager / IDE metadata
+- `GETTING_STARTED.md` — adopter path (which example, boot order, Quectel PDFs)
+- `LC29H_GNSS.h` / `LC29H_GNSS.cpp` — PQTM/PAIR transport and rover/base helpers
+- `LC29H_ProjectConfig.h`, `lc29hconfig.h.template` — sketch-local config and bring-up
+- `LC29H_MessageSchedule.h` — base / rover GIS / phone NMEA rate tables
+- `LC29H_ModuleSetup.h` — `PQTMVERNO` identify and family policy
+- `LC29H_UartPump.h` / `LC29H_UartPump.cpp` — ESP32 drain/frame (do not include on AVR)
+- `LC29H_HostPump.h` — ESP32 example `loop()` helper
+- `LC29H_Rtcm.h` — CRC-24Q assemble before `writeRaw`
+- `LC29H_NmeaCompat.h` — `$PQTMEPE` → `$GNGST`, family from VERNO
+- `examples/` — index in `examples/README.md`; each sketch folder has its own README
+- `CommandReference.md`
+
+Sketch > Include Library inserts only `LC29H_GNSS.h` (see `includes=` in `library.properties`). Extra headers are listed in GETTING_STARTED §3. Do not auto-include `LC29H_UartPump.h`; it `#error`s on non-ESP32.
 
 ## Quick start
 
-1. Copy/open this repository in your Arduino libraries folder.
-2. Open the example-local lc29hconfig.h in the example directory you want to run.
-3. Adjust role and values in that lc29hconfig.h for your project type (UAS rover, base survey, or static base).
-4. Open examples/README.md, then the example folder you want (start with SimpleBaseStation or SimpleRover).
-5. Set GNSS serial pins/port for your board.
-6. Open Serial Monitor at 115200 baud.
-7. Type help and use interactive commands.
+1. Read **[GETTING_STARTED.md](GETTING_STARTED.md)** (which example to open, boot order, field pitfalls, Quectel Download Zone).
+2. Copy this repository into your Arduino `libraries` folder, or clone it there as `LC29H_GNSS`.
+3. Open the example folder you want and edit **that** folder’s `lc29hconfig.h` (pins, role).
+4. Set GNSS serial pins/port for your board.
+5. Open Serial Monitor at 115200 baud. Sketches that call `processSerialCommands` accept `help`, `module_ident`, and `module_reinit rover|base`.
 
 Example config behavior:
 

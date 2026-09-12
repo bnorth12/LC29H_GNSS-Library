@@ -4,9 +4,9 @@ Bench **rover** half of a wired pair. Highest priorities: **ingest RTCM** from t
 
 ## What it does
 
-1. `LC29H_bringUp()` applies the rover profile, then GIS NMEA rates (GGA/RMC/VTG every epoch).
-2. Every loop, `ingestRawAvailable()` **first** so corrections are not starved.
-3. Then NMEA is printed locally and/or forwarded on the link, using the allowlist (GGA, RMC, GST on).
+1. `LC29H_bringUp()` identifies the IC (`PQTMVERNO`), applies rover profile, SAVEPAR, PAIR023 if needed. Swap later with `module_reinit rover`.
+2. ESP32: RTCM in is CRC-assembled (`LC29H_Rtcm`), then `LC29H_HostPump` drains GNSS NMEA. Do not `while (readLine)`.
+3. AVR: `ingestRawAvailable` first, then a **capped** `readLine` count.
 
 ## Hardware
 
@@ -18,7 +18,7 @@ Pair with BaseSerialBridge. ESP32 GNSS Serial1 RX16/TX17, correction Serial2 RX1
 
 ## Messages this sketch uses
 
-Same **to GNSS** rover GIS path as SimpleRover (`PQTMCFGRCVRMODE,W,1`, fix rate, GGA/RMC RATE 1, GSV ~10 s). [Module messages in practice](../../Readme.md#module-messages-in-practice).
+Same **to GNSS** rover GIS path as SimpleRover (`PQTMCFGRCVRMODE,W,1`, fix rate, GGA/RMC RATE 1, GSV ~10 s). [Module messages in practice](../../README.md#module-messages-in-practice).
 
 **Into GNSS:** raw RTCM from the link UART first every loop.  
 **From GNSS:** GGA (position) and RMC (time) for GIS; GST if you forward the allowlist.

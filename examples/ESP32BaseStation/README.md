@@ -7,7 +7,7 @@ ESP32-only survey-base. GNSS on Serial1, RTCM forwarded on Serial2. Not a Wi-Fi/
 1. UART pins come from this folder’s `lc29hconfig.h` (defaults avoid ESP32-S3 native USB GPIOs 19/20).
 2. `LC29H_bringUp()` adopts a matching live survey-in, or CFGSVIN AccLimit 15 m + SAVEPAR + PAIR023.
 3. Base status NMEA schedule; RTCM MSM7+1005 stay 1 Hz (mission stream).
-4. Every loop, `forwardBridgeAvailable()` pumps Serial1 to Serial2. Complete NMEA can be mirrored to USB Serial. Do not parse or write flash inside that callback.
+4. Every loop, `LC29H_HostPump` drains Serial1 (FIFO), frames RTCM into Serial2, and may mirror NMEA to USB. Do not parse or write flash inside the NMEA callback. Unbounded `readLine()` will drop MSM7.
 
 ## Hardware
 
@@ -19,6 +19,6 @@ Edit `lc29hconfig.h` for clone-specific GPIO mapping and survey MinDur.
 
 ## Messages this sketch uses
 
-Same **to GNSS** path as SimpleBaseStation (adopt or CFGSVIN+SAVEPAR+PAIR023, PAIR432/434, base CFGMSGRATE table). [Module messages in practice](../../Readme.md#module-messages-in-practice).
+Same **to GNSS** path as SimpleBaseStation (adopt or CFGSVIN+SAVEPAR+PAIR023, PAIR432/434, base CFGMSGRATE table). [Module messages in practice](../../README.md#module-messages-in-practice).
 
 **From GNSS:** RTCM MSM7+1005 **out Serial2** (mission). Optional GGA on USB. `$PQTMSVINSTATUS` at RATE 10 for Obs/MeanAcc.

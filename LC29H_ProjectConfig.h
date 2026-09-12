@@ -2,6 +2,7 @@
 
 #include <LC29H_GNSS.h>
 #include <LC29H_MessageSchedule.h>
+#include <LC29H_ModuleSetup.h>
 
 // Project-level configuration loader.
 //
@@ -261,16 +262,26 @@ inline bool LC29H_applyProjectConfig(LC29H_GNSS& gnss, LC29H_GNSS::ProfileResult
 #endif
 
 #ifndef LC29H_CFG_ESP32_RX_BUFFER_SIZE
-#define LC29H_CFG_ESP32_RX_BUFFER_SIZE 1024
+#define LC29H_CFG_ESP32_RX_BUFFER_SIZE 8192
+#endif
+
+#ifndef LC29H_CFG_BOOT_CMD_PAUSE_MS
+#define LC29H_CFG_BOOT_CMD_PAUSE_MS 150
+#endif
+
+#ifndef LC29H_CFG_FIX_RATE_MS
+#define LC29H_CFG_FIX_RATE_MS 1000
 #endif
 
 struct LC29H_BringUpResult {
     LC29H_GNSS::ProfileResult profile{LC29H_GNSS::ProfileStatus::CommandFailed, false};
     bool adoptedLiveSurveyIn = false;
+    LC29H_ModuleIdentity identity{};
 };
 
 #if defined(ARDUINO_ARCH_ESP32)
 inline void LC29H_beginEsp32GnssUart(HardwareSerial& port, uint32_t baud, int rxPin, int txPin) {
+    // setRxBufferSize must run before begin() or the driver keeps 256 bytes.
     port.setRxBufferSize(LC29H_CFG_ESP32_RX_BUFFER_SIZE);
     port.begin(baud, SERIAL_8N1, rxPin, txPin);
 }
@@ -292,6 +303,108 @@ inline void LC29H_rebootIfNeeded(LC29H_GNSS& gnss, bool recommended, Stream* log
     delay(LC29H_CFG_REBOOT_SETTLE_MS);
 }
 
+#if defined(ARDUINO_ARCH_ESP32)
+#include <LC29H_UartPump.h>
+
+// Drain UART during boot delays so NMEA/OK cannot fill the driver FIFO.
+inline void LC29H_bootPause(
+    uint32_t ms,
+    HardwareSerial& gnssPort,
+    LC29H_UartPump::Pump& pump,
+    void (*tick)()) {
+    const uint32_t start = millis();
+    while ((millis() - start) < ms) {
+        if (tick != nullptr) {
+            tick();
+        }
+        pump.drain(gnssPort);
+        pump.frame();
+        delay(10);
+    }
+}
+
+// Phone/BLE rover boot. Restore first so a swapped module is not left in base
+// or Fitness nav. Identify PQTMVERNO before SAVEPAR. Call before advertising.
+inline bool LC29H_roverFactoryBringUp(
+    LC29H_GNSS& gnss,
+    Stream* log,
+    HardwareSerial& gnssPort,
+    LC29H_UartPump::Pump& pump,
+    void (*tick)() = nullptr,
+    LC29H_ModuleIdentity* identityOut = nullptr) {
+    auto pause = [&](uint32_t ms) {
+        LC29H_bootPause(ms, gnssPort, pump, tick);
+    };
+    auto step = [&](const char* name) {
+        if (log != nullptr) {
+            log->print("CFG: ");
+            log->println(name);
+        }
+    };
+
+    step("identify PQTMVERNO");
+    LC29H_ModuleIdentity id;
+    gnss.queryVersion();
+    {
+        const uint32_t start = millis();
+        while ((millis() - start) < 800) {
+            if (tick != nullptr) {
+                tick();
+            }
+            pump.drain(gnssPort);
+            pump.frame();
+            pump.processNmea(8, [](const char* line, void* user) {
+                LC29H_noteIdentityLine(*static_cast<LC29H_ModuleIdentity*>(user), line);
+            }, &id);
+            if (id.family != LC29H_NmeaCompat::ModuleFamily::Unknown) {
+                break;
+            }
+            delay(10);
+        }
+    }
+    LC29H_printIdentity(log, id);
+    if (identityOut != nullptr) {
+        *identityOut = id;
+    }
+    LC29H_applyFamilyPolicy(gnss, id.family, true);
+    pause(200);
+
+    step("PQTMRESTOREPAR");
+    gnss.restoreDefaults();
+    pause(500);
+
+    step("PQTMCFGRCVRMODE rover");
+    gnss.setReceiverModeRover();
+    pause(400);
+
+    step("PAIR081 normal nav");
+    gnss.sendPayload("PAIR081,0");
+    pause(300);
+
+    step("fix rate");
+    gnss.setFixRateMs(LC29H_CFG_FIX_RATE_MS);
+    pause(300);
+
+    step("phone NMEA rates");
+    LC29H_MessageSchedule::applyRoverPhoneRates(gnss);
+    pause(400);
+
+    step("PQTMSAVEPAR");
+    gnss.saveConfig();
+    pause(500);
+
+    if (LC29H_familyUsesPair023(id.family)) {
+        step("PAIR023 reboot");
+        gnss.rebootModule();
+        pause(LC29H_CFG_REBOOT_SETTLE_MS);
+    } else {
+        step("skip PAIR023 (this variant)");
+    }
+    step("rover config done");
+    return true;
+}
+#endif
+
 // Role bring-up used by the examples:
 // - Base survey: adopt a matching in-progress SVIN (no CFGSVIN/PAIR023).
 //   Otherwise apply the survey profile, status NMEA schedule, SAVEPAR, PAIR023.
@@ -299,6 +412,7 @@ inline void LC29H_rebootIfNeeded(LC29H_GNSS& gnss, bool recommended, Stream* log
 // - Static base: static profile, base status NMEA schedule, SAVEPAR, PAIR023 if needed.
 inline bool LC29H_bringUp(LC29H_GNSS& gnss, LC29H_BringUpResult& out, Stream* log = nullptr) {
     out = LC29H_BringUpResult{};
+    out.identity = LC29H_identifyModule(gnss, log);
 
 #if !LC29H_PROJECT_CONFIG_AVAILABLE
     (void)gnss;
@@ -332,27 +446,35 @@ inline bool LC29H_bringUp(LC29H_GNSS& gnss, LC29H_BringUpResult& out, Stream* lo
     }
     LC29H_MessageSchedule::applyBaseStatusRates(gnss);
     gnss.saveConfig();
-    LC29H_rebootIfNeeded(gnss, out.profile.powerCycleRecommended, log);
+    if (LC29H_familyUsesPair023(out.identity.family)) {
+        LC29H_rebootIfNeeded(gnss, out.profile.powerCycleRecommended, log);
+    }
     return true;
 
 #elif (LC29H_ROLE == LC29H_ROLE_UAS_ROVER)
+    LC29H_applyFamilyPolicy(gnss, out.identity.family, true);
     if (!LC29H_applyProjectConfig(gnss, out.profile) ||
         out.profile.status != LC29H_GNSS::ProfileStatus::Success) {
         return false;
     }
     LC29H_MessageSchedule::applyRoverGisRates(gnss, LC29H_CFG_FIX_RATE_MS);
     gnss.saveConfig();
-    LC29H_rebootIfNeeded(gnss, out.profile.powerCycleRecommended, log);
+    if (LC29H_familyUsesPair023(out.identity.family)) {
+        LC29H_rebootIfNeeded(gnss, out.profile.powerCycleRecommended, log);
+    }
     return true;
 
 #elif (LC29H_ROLE == LC29H_ROLE_BASE_STATIC)
+    LC29H_applyFamilyPolicy(gnss, out.identity.family, false);
     if (!LC29H_applyProjectConfig(gnss, out.profile) ||
         out.profile.status != LC29H_GNSS::ProfileStatus::Success) {
         return false;
     }
     LC29H_MessageSchedule::applyBaseStatusRates(gnss);
     gnss.saveConfig();
-    LC29H_rebootIfNeeded(gnss, out.profile.powerCycleRecommended, log);
+    if (LC29H_familyUsesPair023(out.identity.family)) {
+        LC29H_rebootIfNeeded(gnss, out.profile.powerCycleRecommended, log);
+    }
     return true;
 
 #else

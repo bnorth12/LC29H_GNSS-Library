@@ -67,7 +67,7 @@ static bool parseFloatField(const String& s, float& out) {
 static void printHelpOverview(Stream& console) {
     console.println("Command groups:");
     console.println("- Identity: help qver uid");
-    console.println("- Lifecycle: help restore save reboot hot warm cold gnss_start gnss_stop");
+    console.println("- Lifecycle: help restore save reboot module_ident module_reinit hot warm cold gnss_start gnss_stop");
     console.println("- Core configuration: help rover base base_survey base_fixed mode_query msg_on msg_off msg_query baud baud_query fixrate fixrate_query rtcm");
     console.println("- Survey and base workflows: help profile_uas profile_base_survey profile_base_static survey_capture survey_pos survey_apply survey_finalize");
     console.println("- Output and diagnostics: help status survey_status rover_status");
@@ -147,6 +147,19 @@ static bool printDetailedCommandHelp(Stream* console, const String& helpArgs) {
     if (topic == "status") {
         console->println("status");
         console->println("Query version, mode, survey state, and baud on port 1.");
+        return true;
+    }
+
+    if (topic == "module_ident") {
+        console->println("module_ident");
+        console->println("Send PQTMVERNO. Watch for LC29HDA/EA/BA/BS in the reply.");
+        return true;
+    }
+
+    if (topic == "module_reinit") {
+        console->println("module_reinit [rover|base]");
+        console->println("After swapping modules: restore defaults, set role, SAVEPAR, PAIR023.");
+        console->println("Example: module_reinit rover");
         return true;
     }
 
@@ -1271,6 +1284,7 @@ bool LC29H_GNSS::queryOdometer() {
 }
 
 bool LC29H_GNSS::queryAndWaitLine(const String& queryPayload, const String& expectedPrefix, String& outLine, uint32_t timeoutMs) {
+    // Each readLine can be a GGA. 1500 ms of GSV means the OK never arrives.
     outLine = "";
 
     for (uint8_t attempt = 0; attempt <= _recoveryPolicy.queryRetries; ++attempt) {
@@ -1507,8 +1521,8 @@ LC29H_GNSS::ProfileResult LC29H_GNSS::applyUasRoverProfile(uint32_t fixRateMs, b
     }
 
     if (verify) {
-        // Verify stage checks that key configuration queries are accepted.
-        // It now validates critical returned fields where supported.
+        // Readback. A live NMEA stream often eats the OK line → VerifyFailed
+        // even though CFGRCVRMODE/FIXRATE were written. Prefer verify=false in field.
         uint8_t mode = 0;
         uint32_t fixMs = 0;
         uint8_t pvtRate = 0;
@@ -1631,6 +1645,8 @@ bool LC29H_GNSS::sendCommand(const String& command, const String* args, size_t a
 }
 
 bool LC29H_GNSS::sendPayload(const String& payloadWithoutDollarOrChecksum) {
+    // Fire-and-forget TX. Does not wait for OK. Pair with queryAndWaitLine only
+    // when the UART is drained; otherwise NMEA wins the timeout.
     _clearError();
 
     if (payloadWithoutDollarOrChecksum.length() == 0) {
@@ -1693,6 +1709,7 @@ size_t LC29H_GNSS::writeRaw(const uint8_t* data, size_t len) {
 }
 
 size_t LC29H_GNSS::ingestRawAvailable(Stream& in, size_t maxBytes, RawIngressStats* stats, size_t chunkSize) {
+    // Byte copy, not RTCM framing. BLE NUS writes are not frames; use LC29H_Rtcm.
     _clearError();
 
     if (chunkSize == 0) {
@@ -2058,6 +2075,7 @@ bool LC29H_GNSS::readLine(String& outLine, uint32_t timeoutMs) {
 }
 
 void LC29H_GNSS::processSerialCommands() {
+    // USB/UART console. module_ident / module_reinit rover|base after a swap.
     if (_console == nullptr) {
         return;
     }
@@ -2915,6 +2933,38 @@ bool LC29H_GNSS::_handleConsoleLine(const String& line) {
 
     if (head == "status") {
         return queryVersion() && queryReceiverMode() && querySurveyIn() && queryBaudRate(1);
+    }
+
+    if (head == "module_ident") {
+        if (_console != nullptr) {
+            _console->println("PQTMVERNO (watch the next GNSS line for LC29HDA/EA/BA/BS).");
+        }
+        return queryVersion();
+    }
+
+    if (head == "module_reinit") {
+        String role = "keep";
+        if (firstSpace >= 0) {
+            role = cmd.substring(firstSpace + 1);
+            role.trim();
+            role.toLowerCase();
+        }
+        if (_console != nullptr) {
+            _console->println("module_reinit: restore, set role, SAVEPAR, PAIR023. Wait ~3s.");
+        }
+        restoreDefaults();
+        delay(500);
+        if (role.startsWith("rover")) {
+            setReceiverModeRover();
+            setNavMode(0);
+        } else if (role.startsWith("base")) {
+            setReceiverModeBase();
+        }
+        delay(300);
+        saveConfig();
+        delay(400);
+        rebootModule();
+        return true;
     }
 
     if (head == "restore") {

@@ -20,9 +20,10 @@
 // -----------------------------------------------------------------------------
 // Save/verify apply to role workflows.
 // SAVE=1 writes config to module flash.
-// VERIFY=1 performs readback checks after applying profile commands.
+// VERIFY=1 readback after profile writes. On a live DA, NMEA often starves
+// PQTM replies → VerifyFailed even when writes succeeded. Use 0 for field rovers.
 #define LC29H_CFG_SAVE 1
-#define LC29H_CFG_VERIFY 1
+#define LC29H_CFG_VERIFY 0
 
 // RTCM output toggle used by base-oriented profile paths.
 // Safe to keep enabled even in rover configs; it is only used where relevant.
@@ -68,7 +69,8 @@
 // ROVER OPTIONS
 // -----------------------------------------------------------------------------
 // Rover profile fix/update interval in ms.
-#define LC29H_CFG_FIX_RATE_MS 200
+// Rover epoch ms. LC29H(DA) RTK is 1 Hz (1000). EA may use 100–1000.
+#define LC29H_CFG_FIX_RATE_MS 1000
 
 // Rover correction bridge behavior.
 // PRINT_LOCAL_NMEA=1 echoes GNSS NMEA to local debug stream.

@@ -24,11 +24,16 @@ void setup() {
 }
 
 void loop() {
-    while (gnssPort.available() > 0) {
+    // Cap per tick so USB Serial.print cannot run until the GNSS FIFO overflows.
+    uint8_t n = 0;
+    while (n < 64 && gnssPort.available() > 0) {
         Serial.write(static_cast<uint8_t>(gnssPort.read()));
+        ++n;
     }
 
-    while (Serial.available() > 0) {
+    n = 0;
+    while (n < 64 && Serial.available() > 0) {
         gnssPort.write(static_cast<uint8_t>(Serial.read()));
+        ++n;
     }
 }

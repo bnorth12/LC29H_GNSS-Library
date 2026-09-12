@@ -194,8 +194,11 @@ void setup() {
 }
 
 void loop() {
-    while (gnssPort.available() > 0) {
+    // Drain a bounded burst so USB echo cannot stall the GNSS RX FIFO.
+    uint8_t n = 0;
+    while (n < 64 && gnssPort.available() > 0) {
         Serial.write(static_cast<uint8_t>(gnssPort.read()));
+        ++n;
     }
 
     while (Serial.available() > 0) {

@@ -1,9 +1,15 @@
 #include <LC29H_GNSS.h>
 #include <LC29H_ProjectConfig.h>
+#if defined(ARDUINO_ARCH_ESP32)
+#include <LC29H_HostPump.h>
+#include <LC29H_Rtcm.h>
+#endif
 
-// Bench rover: ingest RTCM from the link UART, write it to GNSS, publish GGA
-// (position) and RMC (time) for GIS. GST ~1 Hz, GSV every 10 s.
-// Loop order: corrections first, then NMEA. Do not starve RTCM ingress.
+// Bench rover half of a wired pair. RTCM from the link UART into GNSS, then
+// GGA/RMC (and optional GST) out. Loop: corrections first, then NMEA.
+//
+// ESP32: CRC-24Q assemble RTCM before writeRaw (partial UART bytes are not
+// a valid frame). Then HostPump drains GNSS. AVR: ingestRaw + capped readLine.
 // Message payloads: this folder's README and library Readme "Module messages in practice".
 //
 // Minimum verified hardware:
@@ -56,6 +62,11 @@ SoftwareSerial correctionLinkPort(kLinkRxPin, kLinkTxPin);
 
 LC29H_GNSS gnss(gnssPort, &Serial);
 LC29H_GNSS::RawIngressStats ingressStats;
+#if defined(ARDUINO_ARCH_ESP32)
+LC29H_UartPump::Pump uartPump;
+LC29H_Rtcm::Assembler rtcmIn;
+LC29H_Rtcm::Counters rtcmCounters;
+#endif
 LC29H_GNSS::BridgeState bridgeState;
 LC29H_GNSS::BridgeStats bridgeStats;
 LC29H_GNSS::BridgeMode bridgeMode = LC29H_GNSS::BridgeMode::RtcmAndNmeaAllowlist;
@@ -70,7 +81,8 @@ void setup() {
     delay(250);
 
 #if defined(ARDUINO_ARCH_ESP32)
-    LC29H_beginEsp32GnssUart(gnssPort, kGnssBaud, kGnssRxPin, kGnssTxPin);
+    LC29H_HostPump::beginGnss(
+        gnssPort, kGnssBaud, kGnssRxPin, kGnssTxPin, uartPump, LC29H_UartPump::roverGisPriorities());
     correctionLinkPort.begin(kLinkBaud, SERIAL_8N1, kLinkRxPin, kLinkTxPin);
 #else
     gnssPort.begin(kGnssBaud);
@@ -120,12 +132,27 @@ void loop() {
 #if !defined(ARDUINO_ARCH_ESP32)
     correctionLinkPort.listen();
 #endif
+#if defined(ARDUINO_ARCH_ESP32)
+    // Assemble complete RTCM3 frames (CRC-24Q) before writeRaw. Partial BLE/UART
+    // chunks are not valid messages; dumping them poisons the GNSS parser.
+    while (correctionLinkPort.available() > 0) {
+        const int b = correctionLinkPort.read();
+        if (b < 0) {
+            break;
+        }
+        rtcmIn.feed(static_cast<uint8_t>(b), gnss, &ingressStats, rtcmCounters);
+    }
+    LC29H_HostPump::tick(gnssPort, uartPump);
+    Stream* nmeaDest = nullptr;
+    if (kForwardNmeaToLink) {
+        nmeaDest = &correctionLinkPort;
+    } else if (kPrintLocalNmea) {
+        nmeaDest = &Serial;
+    }
+    LC29H_HostPump::processTo(uartPump, nullptr, nmeaDest);
+#else
     gnss.ingestRawAvailable(correctionLinkPort, 0, &ingressStats, kCorrectionChunkSize);
-
-#if !defined(ARDUINO_ARCH_ESP32)
     gnssPort.listen();
-#endif
-
     if (kForwardNmeaToLink) {
         Stream* localNmeaOut = kPrintLocalNmea ? &Serial : nullptr;
         gnss.forwardBridgeAvailable(
@@ -140,10 +167,13 @@ void loop() {
             nullptr);
     } else if (kPrintLocalNmea) {
         String line;
-        while (gnss.readLine(line, 0)) {
+        uint8_t n = 0;
+        while (n < 8 && gnss.readLine(line, 0)) {
             Serial.println(line);
+            ++n;
         }
     }
+#endif
 
     const uint32_t now = millis();
     if ((now - lastStatusMs) >= kStatusIntervalMs) {

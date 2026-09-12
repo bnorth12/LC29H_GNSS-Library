@@ -102,6 +102,7 @@ void setup() {
     delay(250);
 
     LC29H_beginEsp32GnssUart(gnssPort, kGnssBaud, kGnssRxPin, kGnssTxPin);
+    gnssPort.setTimeout(0);
     usbUartPort.begin(kUsbUartBaud);
 
     gnss.attachConsole(Serial);
@@ -163,6 +164,8 @@ void loop() {
         return;
     }
 
+    // Raw passthrough for QGNSS: do not CRC-frame here. Host bytes in first,
+    // then GNSS bytes out. One reader on Serial1; do not also open QGNSS on it.
     gnss.ingestRawAvailable(usbUartPort, 0, &ingressStats, LC29H_CFG_ROVER_CORRECTION_CHUNK_SIZE);
     bytesFromGnss += static_cast<uint32_t>(gnss.forwardAvailable(usbUartPort, 0));
 

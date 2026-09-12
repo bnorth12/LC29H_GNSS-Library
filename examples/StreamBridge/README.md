@@ -19,6 +19,6 @@ Forwards GNSS output to an upstream UART (second board, radio, or host). RTCM is
 
 ## Messages this sketch uses
 
-Same survey-base **to GNSS** commands as SimpleBaseStation. [Module messages in practice](../../Readme.md#module-messages-in-practice).
+Same survey-base **to GNSS** commands as SimpleBaseStation. [Module messages in practice](../../README.md#module-messages-in-practice).
 
 **From GNSS:** RTCM (always, if enabled) plus allowlisted NMEA (default GGA) **out the link UART**. GSV is RATE 10 so it does not fill that link.
