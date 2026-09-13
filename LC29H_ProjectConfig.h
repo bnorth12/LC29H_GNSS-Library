@@ -366,6 +366,10 @@ inline bool LC29H_roverFactoryBringUp(
     if (identityOut != nullptr) {
         *identityOut = id;
     }
+    if (id.family == LC29H_NmeaCompat::ModuleFamily::BS) {
+        step("LC29H(BS) is a base-only module; rover bring-up aborted");
+        return false;
+    }
     LC29H_applyFamilyPolicy(gnss, id.family, true);
     pause(200);
 

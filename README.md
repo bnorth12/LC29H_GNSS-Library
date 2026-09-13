@@ -4,7 +4,11 @@
 
 Configuration-focused Arduino library for Quectel **LC29H(BA), LC29H(BS), LC29H(DA), and LC29H(EA)**. Wrappers exist for the union of those ICDs; not every command is legal on every variant (see **Module variants** below).
 
-**New adopter?** Start here, not at the version history: **[GETTING_STARTED.md](GETTING_STARTED.md)**. Then open one folder under `examples/` and that folder’s README. Changelog sections below 0.2.15 are historical.
+**New adopter?** Start here, not at the version history: **[GETTING_STARTED.md](GETTING_STARTED.md)**. Then open one folder under `examples/` and that folder’s README. Changelog sections below 0.2.16 are historical.
+
+## Version 0.2.16
+
+`LC29H_roverFactoryBringUp` identifies `$PQTMVERNO` and **returns false for LC29H(BS)** (base-only; no rover engine). Callers must fail closed instead of setting rover mode.
 
 This library does **not** replace Quectel’s protocol/hardware PDFs or a general RTK introduction. Register on [Quectel Download Zone](https://www.quectel.com/download-zone) for the LC29H documents listed in GETTING_STARTED §7.
 
