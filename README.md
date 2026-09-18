@@ -1111,6 +1111,11 @@ Protocol PDFs in Temp should remain the final authority before locking API behav
 - Add platform examples for ESP32, AVR, and dual-UART boards
 - Add unit tests for checksum and coordinate conversion
 
+## RTCM framing (TinyRTCM3)
+
+UART/NMEA/Quectel config stay here. RTCM assemble/CRC/type/filter belongs in **TinyRTCM3**.
+Contract + phased integration: [docs/TinyRTCM3_Contract.md](docs/TinyRTCM3_Contract.md).
+
 ## Gated outputs / mode-specific messages
 
 Survey-in status, jamming, geofence, ZDA/GRS/GST/GNS, and RTCM ephemeris often need more than a rate toggle. See **[docs/GatedOutputs.md](docs/GatedOutputs.md)**.
