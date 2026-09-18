@@ -1113,7 +1113,7 @@ Protocol PDFs in Temp should remain the final authority before locking API behav
 
 ## RTCM framing (TinyRTCM3)
 
-UART/NMEA/Quectel config stay here. RTCM assemble/CRC/type/filter belongs in **TinyRTCM3**.
+UART/NMEA/Quectel config stay here. RTCM assemble/CRC/type/filter belongs in **TinyRTCM3** (**optional peer** — this library does **not** require it).
 Contract + phased integration: [docs/TinyRTCM3_Contract.md](docs/TinyRTCM3_Contract.md).
 
 ## Gated outputs / mode-specific messages
