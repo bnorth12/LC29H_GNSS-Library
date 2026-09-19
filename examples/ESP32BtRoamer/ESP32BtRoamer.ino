@@ -322,15 +322,19 @@ bool gnssStable = false;
 bool bleReadyToAdvertise = false;
 uint32_t gnssConfigStartMs = 0;
 
-#if defined(LC29H_BT_ROAMER_USE_SPP)
-void sendNmeaLineToBt(const String& line) {
-    btSerial.print(line);
-    btSerial.print("\r\n");
-    noteBtTx();
-}
-#else
-bool nmeaLooksValid(const String& line) {
-    return LC29H_GNSS::hasValidNmeaChecksum(line);
+// Shared SPP+BLE: NMEA pump callback and module family (must not be BLE-only — classic ESP32 CI uses SPP).
+LC29H_NmeaCompat::ModuleFamily moduleFamily = LC29H_NmeaCompat::ModuleFamily::Unknown;
+String moduleVersion;
+bool phoneRatesApplied = false;
+bool versionQuerySent = false;
+
+void noteModuleVersionLine(const String& line) {
+    const LC29H_NmeaCompat::ModuleFamily parsed = LC29H_NmeaCompat::familyFromLine(line.c_str());
+    if (parsed == LC29H_NmeaCompat::ModuleFamily::Unknown) {
+        return;
+    }
+    moduleVersion = line;
+    moduleFamily = parsed;
 }
 
 void onPumpedNmea(const char* line, void* user) {
@@ -362,6 +366,17 @@ void onPumpedNmea(const char* line, void* user) {
             lastGstMs = millis();
         }
     }
+}
+
+#if defined(LC29H_BT_ROAMER_USE_SPP)
+void sendNmeaLineToBt(const String& line) {
+    btSerial.print(line);
+    btSerial.print("\r\n");
+    noteBtTx();
+}
+#else
+bool nmeaLooksValid(const String& line) {
+    return LC29H_GNSS::hasValidNmeaChecksum(line);
 }
 
 size_t bleNotifyPayloadSize() {
@@ -414,20 +429,6 @@ struct BleNmeaGate {
 BleNmeaGate bleGgaGate{LC29H_CFG_BLE_NMEA_GGA_MS, 0, 1, 0, 0};
 BleNmeaGate bleRmcGate{LC29H_CFG_BLE_NMEA_RMC_MS, 0, 1, 0, 0};
 BleNmeaGate bleGstGate{LC29H_CFG_BLE_NMEA_GST_MS, 0, 1, 0, 0};
-
-LC29H_NmeaCompat::ModuleFamily moduleFamily = LC29H_NmeaCompat::ModuleFamily::Unknown;
-String moduleVersion;
-bool phoneRatesApplied = false;
-bool versionQuerySent = false;
-
-void noteModuleVersionLine(const String& line) {
-    const LC29H_NmeaCompat::ModuleFamily parsed = LC29H_NmeaCompat::familyFromLine(line.c_str());
-    if (parsed == LC29H_NmeaCompat::ModuleFamily::Unknown) {
-        return;
-    }
-    moduleVersion = line;
-    moduleFamily = parsed;
-}
 
 bool applyRoverPhoneNmeaRates() {
     const uint32_t fixMs = (LC29H_CFG_FIX_RATE_MS > 0) ? LC29H_CFG_FIX_RATE_MS : 1000;
@@ -578,7 +579,7 @@ void debugMirrorGnssRx() {
 
 void setup() {
     Serial.begin(kConsoleBaud);
-    Serial.setTxTimeoutMs(0);
+    // Do not call Serial.setTxTimeoutMs — absent on many esp32 core builds (CI Arduino CLI Validate).
     dbgReady();
     updateStatusLed();
     dbg.println("ESP32BtRoamer boot");
