@@ -387,6 +387,9 @@ public:
     // <Obs> start on DA (0/2/8 left Obs at 0). Caller must PQTMSAVEPAR then rebootModule()
     // (PAIR023). PAIR003/PAIR002 GNSS sleep is not enough on DA.
     bool configureBaseSurveyIn(uint32_t minTimeSec = 300, float minStdDevM = 15.0f);
+    // PQTMCFGSVIN,W,0,0,0,0,0,0. Disables survey-in and the stored fixed position.
+    // Does not SAVEPAR; the caller saves on its own pace.
+    bool disableSurveyIn();
     bool querySurveyIn();
     // Reads PQTMCFGSVIN,R into mode/MinDur/AccLimit. Used to adopt a live SVIN
     // (matching MinDur) without CFGSVIN/SAVEPAR/PAIR023, which would zero Obs.

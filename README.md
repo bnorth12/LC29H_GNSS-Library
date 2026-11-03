@@ -4,7 +4,11 @@
 
 Configuration-focused Arduino library for Quectel **LC29H(BA), LC29H(BS), LC29H(DA), and LC29H(EA)**. Wrappers exist for the union of those ICDs; not every command is legal on every variant (see **Module variants** below).
 
-**New adopter?** Start here, not at the version history: **[GETTING_STARTED.md](GETTING_STARTED.md)**. Then open one folder under `examples/` and that folder’s README. Changelog sections below 0.2.16 are historical.
+**New adopter?** Start here, not at the version history: **[GETTING_STARTED.md](GETTING_STARTED.md)**. Then open one folder under `examples/` and that folder’s README. Changelog sections below 0.3.0 are historical.
+
+## Version 0.3.0
+
+Optional TinyRTCM3 peer: when `<TinyRTCM3.h>` is on the include path, RTCM per-type counts go to `tinyrtcm3::StreamStats` via `setStreamStats()`. This library still frames RTCM and checks CRC-24Q itself. `library.properties` does not `depends=` TinyRTCM3. `LC29H_UartPump::PumpHealth` is a POD snapshot (`pumpHealth()`): bytes in, frames, drops, drain high-water, max gap, CRC fails. `LC29H_NmeaFeed` feeds lines or bytes into a TinyGPS++-style `encode(char)` without including TinyGPS++. `disableSurveyIn()` sends `PQTMCFGSVIN,W,0,0,0,0,0,0`.
 
 ## Version 0.2.16
 

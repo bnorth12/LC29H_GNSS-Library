@@ -312,6 +312,9 @@ uint32_t lastRmcMs = 0;
 uint32_t lastGstMs = 0;
 LC29H_Rtcm::Counters rtcmCounters;
 LC29H_Rtcm::Assembler bleRtcmIn;
+#if LC29H_HAS_TINYRTCM3
+tinyrtcm3::StreamStats rtcmStats;
+#endif
 void noteModuleVersionLine(const String& line);
 
 uint32_t nmeaLinesPrinted = 0;
@@ -592,6 +595,10 @@ void setup() {
         pri.gsa = LC29H_UartPump::Priority::Needed;
         pri.epe = LC29H_UartPump::Priority::Needed;
         uartPump.setPriorities(pri);
+#if LC29H_HAS_TINYRTCM3
+        uartPump.setStreamStats(&rtcmStats);
+        bleRtcmIn.setStreamStats(&rtcmStats);
+#endif
     }
     gnss.setRecoveryPolicy(LC29H_projectRecoveryPolicy());
     roverEnabled = true;
@@ -826,20 +833,26 @@ void loop() {
         dbg.print(uartPump.checksumFails());
         dbg.print(", drainOvf=");
         dbg.print(uartPump.drainOverruns());
+        const LC29H_UartPump::PumpHealth health = uartPump.pumpHealth();
+        dbg.print(", pumpFrames=");
+        dbg.print(health.frames);
+        dbg.print(", pumpDrops=");
+        dbg.print(health.drops);
+        dbg.print(", pumpHigh=");
+        dbg.print(health.drainHighWater);
+        dbg.print(", pumpGap=");
+        dbg.print(health.maxGapMs);
         dbg.print(", rtcmOk=");
         dbg.print(rtcmCounters.framesOk);
         dbg.print(", rtcmCrcFail=");
         dbg.print(rtcmCounters.crcFails);
-        dbg.print(", t1005=");
-        dbg.print(rtcmCounters.msg1005);
-        dbg.print(", t1006=");
-        dbg.print(rtcmCounters.msg1006);
-        dbg.print(", msm4=");
-        dbg.print(rtcmCounters.msm4);
-        dbg.print(", msm7=");
-        dbg.print(rtcmCounters.msm7);
         dbg.print(", lastRtcm=");
         dbg.print(rtcmCounters.lastType);
+#if LC29H_HAS_TINYRTCM3
+        const tinyrtcm3::TypeRow* arp = tinyrtcm3::statsFindTypeConst(&rtcmStats, 1005);
+        dbg.print(", t1005=");
+        dbg.print(arp != nullptr ? arp->count : 0);
+#endif
     #endif
         dbg.print(", uptimeMs=");
         dbg.println(now);

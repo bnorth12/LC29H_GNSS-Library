@@ -66,6 +66,9 @@ LC29H_GNSS::RawIngressStats ingressStats;
 LC29H_UartPump::Pump uartPump;
 LC29H_Rtcm::Assembler rtcmIn;
 LC29H_Rtcm::Counters rtcmCounters;
+#if LC29H_HAS_TINYRTCM3
+tinyrtcm3::StreamStats rtcmStats;
+#endif
 #endif
 LC29H_GNSS::BridgeState bridgeState;
 LC29H_GNSS::BridgeStats bridgeStats;
@@ -83,6 +86,10 @@ void setup() {
 #if defined(ARDUINO_ARCH_ESP32)
     LC29H_HostPump::beginGnss(
         gnssPort, kGnssBaud, kGnssRxPin, kGnssTxPin, uartPump, LC29H_UartPump::roverGisPriorities());
+#if LC29H_HAS_TINYRTCM3
+    uartPump.setStreamStats(&rtcmStats);
+    rtcmIn.setStreamStats(&rtcmStats);
+#endif
     correctionLinkPort.begin(kLinkBaud, SERIAL_8N1, kLinkRxPin, kLinkTxPin);
 #else
     gnssPort.begin(kGnssBaud);
@@ -178,6 +185,29 @@ void loop() {
     const uint32_t now = millis();
     if ((now - lastStatusMs) >= kStatusIntervalMs) {
         LC29H_GNSS::printRawIngressStatus(Serial, "RoverCorrectionBridge", ingressStats, now);
+#if defined(ARDUINO_ARCH_ESP32)
+        const LC29H_UartPump::PumpHealth health = uartPump.pumpHealth();
+        Serial.print("pump frames=");
+        Serial.print(health.frames);
+        Serial.print(" drops=");
+        Serial.print(health.drops);
+        Serial.print(" high=");
+        Serial.print(health.drainHighWater);
+        Serial.print(" gap=");
+        Serial.print(health.maxGapMs);
+        Serial.print(" rtcmOk=");
+        Serial.print(rtcmCounters.framesOk);
+        Serial.print(" rtcmCrcFail=");
+        Serial.print(rtcmCounters.crcFails);
+        Serial.print(" lastRtcm=");
+        Serial.println(rtcmCounters.lastType);
+#if LC29H_HAS_TINYRTCM3
+        rtcmIn.setNowMs(now);
+        const tinyrtcm3::TypeRow* arp = tinyrtcm3::statsFindTypeConst(&rtcmStats, 1005);
+        Serial.print("t1005=");
+        Serial.println(arp != nullptr ? arp->count : 0);
+#endif
+#endif
         if (kForwardNmeaToLink) {
             LC29H_GNSS::printBridgeStatus(Serial, "RoverNmeaForward", bridgeMode, bridgeStats, now);
         }

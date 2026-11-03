@@ -5,6 +5,11 @@
 **TinyRTCM3 is optional.** LC29H_GNSS must compile, link, and run its public API and
 examples **without** TinyRTCM3 on the include path or in package manifests.
 
+v0.3.0 wires the optional peer with `#if __has_include(<TinyRTCM3.h>)` inside
+`LC29H_Rtcm.h` and `LC29H_UartPump.h` only. Per-type CRC-pass counts go to
+`tinyrtcm3::StreamStats` when a sketch calls `setStreamStats()`. Framing and the
+CRC-24Q ingress guard stay in this library. There is no `depends=` line.
+
 | May | Must not |
 |-----|----------|
 | Apps use LC29H alone, TinyRTCM3 alone, or both | List TinyRTCM3 as a required dependency of this library |

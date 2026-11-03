@@ -2,6 +2,7 @@
 #include <LC29H_ProjectConfig.h>
 #if defined(ARDUINO_ARCH_ESP32)
 #include <LC29H_UartPump.h>
+#include <LC29H_NmeaFeed.h>
 #endif
 
 // Simple rover: RTCM in is the mission; GGA/RMC out for GIS.
@@ -127,9 +128,15 @@ void loop() {
     uartPump.drain(gnssPort);  // empty the driver FIFO (overwrite-oldest ring)
     uartPump.frame();          // NMEA XOR + RTCM length; bad checksums counted
     uartPump.processNmea(8, [](const char* line, void*) {
-        if (line != nullptr) {
-            Serial.println(line);
+        if (line == nullptr) {
+            return;
         }
+        struct EncodeSink {
+            bool encode(char) { return true; }
+        };
+        static EncodeSink sink;
+        LC29H_NmeaFeed::feedTinyGpsPlus(sink, line);
+        Serial.println(line);
     }, nullptr);
 #else
     String line;
@@ -142,6 +149,15 @@ void loop() {
     const uint32_t now = millis();
     if ((now - lastStatusMs) >= kStatusIntervalMs) {
         LC29H_GNSS::printRawIngressStatus(Serial, "SimpleRover", corrStats, now);
+        const LC29H_UartPump::PumpHealth health = uartPump.pumpHealth();
+        Serial.print("pump frames=");
+        Serial.print(health.frames);
+        Serial.print(" drops=");
+        Serial.print(health.drops);
+        Serial.print(" high=");
+        Serial.print(health.drainHighWater);
+        Serial.print(" gap=");
+        Serial.println(health.maxGapMs);
         lastStatusMs = now;
     }
 #endif

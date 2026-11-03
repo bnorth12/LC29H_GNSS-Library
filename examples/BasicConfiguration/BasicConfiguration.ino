@@ -2,6 +2,7 @@
 #include <LC29H_ProjectConfig.h>
 #if defined(ARDUINO_ARCH_ESP32)
 #include <LC29H_HostPump.h>
+#include <LC29H_NmeaFeed.h>
 #endif
 
 // Interactive reference: bring-up, queries, and Serial Monitor commands.
@@ -134,12 +135,24 @@ void loop() {
             return;
         }
         LC29H_GNSS::PairAck ack;
+        LC29H_NmeaFeed::feedNmeaBytes(line, [](uint8_t, void*) {}, nullptr);
         if (LC29H_GNSS::tryParsePairAck(String(line), ack)) {
             LC29H_GNSS::printPairAck(Serial, ack, "ACK");
         } else {
             Serial.println(line);
         }
     }, nullptr);
+    static uint32_t lastHealthMs = 0;
+    if (millis() - lastHealthMs >= 5000) {
+        lastHealthMs = millis();
+        const LC29H_UartPump::PumpHealth health = uartPump.pumpHealth();
+        Serial.print("pump frames=");
+        Serial.print(health.frames);
+        Serial.print(" drops=");
+        Serial.print(health.drops);
+        Serial.print(" high=");
+        Serial.println(health.drainHighWater);
+    }
 #else
     String line;
     if (gnss.readLine(line, 0)) {

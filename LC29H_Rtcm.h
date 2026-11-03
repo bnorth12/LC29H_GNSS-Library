@@ -3,8 +3,25 @@
 #include <Arduino.h>
 #include <LC29H_GNSS.h>
 
+// Optional peer. Absent TinyRTCM3 must still compile this header.
+#if !defined(LC29H_HAS_TINYRTCM3)
+#  if defined(__has_include)
+#    if __has_include(<TinyRTCM3.h>)
+#      include <TinyRTCM3.h>
+#      define LC29H_HAS_TINYRTCM3 1
+#    else
+#      define LC29H_HAS_TINYRTCM3 0
+#    endif
+#  else
+#    define LC29H_HAS_TINYRTCM3 0
+#  endif
+#endif
+
 // RTCM3 frame assembly and CRC-24Q. Use on BLE/UART ingress before writeRaw()
 // so a partial notify cannot poison the GNSS UART.
+// Per-type totals move to TinyRTCM3 StreamStats when that header is present
+// and the sketch calls setStreamStats(). Coarse framesOk / crcFails / lastType
+// stay here because this assembler is the ingress CRC guard.
 
 namespace LC29H_Rtcm {
 
@@ -34,6 +51,8 @@ inline uint16_t messageType(const uint8_t* frame, size_t len) {
 struct Counters {
     uint32_t framesOk = 0;
     uint32_t crcFails = 0;
+    // Kept so older sketches still compile. Not updated in 0.3.0.
+    // Per-type counts live on tinyrtcm3::StreamStats when LC29H_HAS_TINYRTCM3.
     uint32_t msg1005 = 0;
     uint32_t msg1006 = 0;
     uint32_t msm4 = 0;
@@ -48,6 +67,12 @@ public:
         _expected = 0;
         _phase = 0;
     }
+
+#if LC29H_HAS_TINYRTCM3
+    void setStreamStats(tinyrtcm3::StreamStats* stats) { _stats = stats; }
+    // 0 skips lastSeen / gap / rate inside TinyRTCM3.
+    void setNowMs(uint32_t nowMs) { _nowMs = nowMs; }
+#endif
 
     void feed(uint8_t b, LC29H_GNSS& dest, LC29H_GNSS::RawIngressStats* stats, Counters& counters) {
         if (_phase == 0) {
@@ -117,21 +142,18 @@ private:
         }
         ++counters.framesOk;
         counters.lastType = messageType(_buf, _expected);
-        if (counters.lastType == 1005) {
-            ++counters.msg1005;
-        } else if (counters.lastType == 1006) {
-            ++counters.msg1006;
-        } else if (counters.lastType == 1074 || counters.lastType == 1084 ||
-                   counters.lastType == 1094 || counters.lastType == 1114 ||
-                   counters.lastType == 1124) {
-            ++counters.msm4;
-        } else if (counters.lastType == 1077 || counters.lastType == 1087 ||
-                   counters.lastType == 1097 || counters.lastType == 1117 ||
-                   counters.lastType == 1127) {
-            ++counters.msm7;
+#if LC29H_HAS_TINYRTCM3
+        if (_stats != nullptr) {
+            tinyrtcm3::statsOnCrcPass(_stats, counters.lastType, _expected, _nowMs);
         }
+#endif
         reset();
     }
+
+#if LC29H_HAS_TINYRTCM3
+    tinyrtcm3::StreamStats* _stats = nullptr;
+    uint32_t _nowMs = 0;
+#endif
 };
 
 }  // namespace LC29H_Rtcm

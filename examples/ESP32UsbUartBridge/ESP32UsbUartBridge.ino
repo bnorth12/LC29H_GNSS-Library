@@ -2,8 +2,10 @@
 #include <LC29H_ProjectConfig.h>
 
 // Dual USB-C bring-up: native USB is the Arduino console, CH340 Serial0 is a
-// raw GNSS UART for QGNSS. One host at a time. Auto-apply is off by default so
-// QGNSS owns module config. Loop: host bytes into GNSS, GNSS bytes out to host.
+// raw GNSS UART for QGNSS. One host at a time. "Dual USB-C" is the dev board,
+// not two NTRIP casters. Auto-apply is off by default so QGNSS owns module config.
+// Clear a stored survey with gnss.disableSurveyIn() (PQTMCFGSVIN mode 0) then saveConfig().
+// Loop: host bytes into GNSS, GNSS bytes out to host.
 // Message payloads: this folder's README and library Readme "Module messages in practice".
 //
 // Minimum verified hardware:

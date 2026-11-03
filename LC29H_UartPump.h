@@ -9,6 +9,19 @@
 
 #include <LC29H_GNSS.h>
 
+#if !defined(LC29H_HAS_TINYRTCM3)
+#  if defined(__has_include)
+#    if __has_include(<TinyRTCM3.h>)
+#      include <TinyRTCM3.h>
+#      define LC29H_HAS_TINYRTCM3 1
+#    else
+#      define LC29H_HAS_TINYRTCM3 0
+#    endif
+#  else
+#    define LC29H_HAS_TINYRTCM3 0
+#  endif
+#endif
+
 // Drain UART first (no parse), then frame into RTCM FIFO + latest-wins NMEA mailboxes.
 // Priority 0/1/2 and aging limits are policy: the sketch fills PriorityTable.
 //
@@ -59,6 +72,20 @@ inline PriorityTable roverGisPriorities() {
 typedef void (*NmeaHandler)(const char* line, void* user);
 typedef void (*RtcmHandler)(const uint8_t* frame, size_t len, void* user);
 
+// POD snapshot. drops = drain overruns + RTCM FIFO drops + CRC rejects.
+struct PumpHealth {
+    uint32_t bytesIn = 0;
+    uint32_t frames = 0;
+    uint32_t drops = 0;
+    uint32_t drainHighWater = 0;
+    uint32_t maxGapMs = 0;
+    uint32_t checksumFails = 0;
+    uint32_t crcFails = 0;
+    uint32_t lastDrainBytes = 0;
+    uint16_t drainFill = 0;
+    uint8_t rtcmQueued = 0;
+};
+
 class Pump {
 public:
     static constexpr size_t kDrainCap = 8192;
@@ -99,6 +126,12 @@ public:
     uint8_t gsvSkipped() const { return _gsvSkipped; }
     bool gsvDue() const { return _gsvDue; }
     uint16_t drainFill() const;
+    PumpHealth pumpHealth() const;
+
+#if LC29H_HAS_TINYRTCM3
+    // Per-type CRC-pass accounting. The pump still frames and CRC-checks itself.
+    void setStreamStats(tinyrtcm3::StreamStats* stats) { _tinyStats = stats; }
+#endif
 
 private:
     enum class Kind : uint8_t {
@@ -164,6 +197,15 @@ private:
     uint32_t _gsvDueCount = 0;
     uint32_t _resyncs = 0;
     uint32_t _lastDrainBytes = 0;
+    uint32_t _bytesIn = 0;
+    uint32_t _framesOk = 0;
+    uint32_t _crcFails = 0;
+    uint32_t _drainHighWater = 0;
+    uint32_t _maxGapMs = 0;
+    uint32_t _lastFrameMs = 0;
+#if LC29H_HAS_TINYRTCM3
+    tinyrtcm3::StreamStats* _tinyStats = nullptr;
+#endif
 
     void pushDrainByte(uint8_t b);
     bool popDrainByte(uint8_t& b);

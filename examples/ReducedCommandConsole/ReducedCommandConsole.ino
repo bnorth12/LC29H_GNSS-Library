@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <LC29H_NmeaFeed.h>
 
 // Tiny SRAM console: no LC29H_GNSS object. Type payloads to configure the module.
 // Survey-in on DA: AccLimit 15, SAVEPAR, PAIR023. Rover GIS: keep GGA/RMC on;
@@ -61,6 +62,7 @@ static void printHelp() {
     Serial.println(F("  gnss_start | gnss_stop"));
     Serial.println(F("  send <payload>"));
     Serial.println(F("  Survey-in on DA: send PQTMCFGSVIN,W,1,3600,15,0,0,0 then save then reboot."));
+    Serial.println(F("  survey_off    (PQTMCFGSVIN,W,0,0,0,0,0,0 — same as disableSurveyIn)"));
     Serial.println(F("  AccLimit 15 m starts Obs; PAIR003 sleep is not a reboot."));
 }
 
@@ -125,6 +127,12 @@ static void handleCommand(char* line) {
         snprintf(payload, sizeof(payload), "PQTMCFGFIXRATE,W,%lu", static_cast<unsigned long>(rateMs));
         sendPayload(payload);
         Serial.println(F("Fix rate command sent."));
+        return;
+    }
+
+    if (strcmp(line, "survey_off") == 0) {
+        sendPayload("PQTMCFGSVIN,W,0,0,0,0,0,0");
+        Serial.println(F("PQTMCFGSVIN mode 0 sent. save to keep it."));
         return;
     }
 
@@ -196,10 +204,14 @@ void setup() {
 void loop() {
     // Drain a bounded burst so USB echo cannot stall the GNSS RX FIFO.
     uint8_t n = 0;
+    static uint32_t nmeaFed = 0;
     while (n < 64 && gnssPort.available() > 0) {
-        Serial.write(static_cast<uint8_t>(gnssPort.read()));
+        const uint8_t b = static_cast<uint8_t>(gnssPort.read());
+        Serial.write(b);
+        nmeaFed += LC29H_NmeaFeed::feedNmeaBytes(&b, 1, [](uint8_t, void*) {}, nullptr);
         ++n;
     }
+    (void)nmeaFed;
 
     while (Serial.available() > 0) {
         const char c = static_cast<char>(Serial.read());

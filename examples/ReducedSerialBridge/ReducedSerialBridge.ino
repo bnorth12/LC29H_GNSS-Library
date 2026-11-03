@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <LC29H_NmeaFeed.h>
 
 // Raw USB Serial <-> GNSS UART passthrough. No LC29H_GNSS object.
 // One reader on each side. Do not also open QGNSS on this same UART.
@@ -26,10 +27,14 @@ void setup() {
 void loop() {
     // Cap per tick so USB Serial.print cannot run until the GNSS FIFO overflows.
     uint8_t n = 0;
+    static uint32_t nmeaFed = 0;
     while (n < 64 && gnssPort.available() > 0) {
-        Serial.write(static_cast<uint8_t>(gnssPort.read()));
+        const uint8_t b = static_cast<uint8_t>(gnssPort.read());
+        Serial.write(b);
+        nmeaFed += LC29H_NmeaFeed::feedNmeaBytes(&b, 1, [](uint8_t, void*) {}, nullptr);
         ++n;
     }
+    (void)nmeaFed;
 
     n = 0;
     while (n < 64 && Serial.available() > 0) {
