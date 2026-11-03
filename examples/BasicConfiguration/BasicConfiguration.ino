@@ -145,11 +145,13 @@ void loop() {
     static uint32_t lastHealthMs = 0;
     if (millis() - lastHealthMs >= 5000) {
         lastHealthMs = millis();
-        const LC29H_UartPump::PumpHealth health = uartPump.pumpHealth();
+        const LC29H_UartPump::PumpHealth health = LC29H_HostPump::snapshotHealth(uartPump);
         Serial.print("pump frames=");
         Serial.print(health.frames);
         Serial.print(" drops=");
         Serial.print(health.drops);
+        Serial.print(" txDrops=");
+        Serial.print(LC29H_HostPump::txDropCount());
         Serial.print(" high=");
         Serial.println(health.drainHighWater);
     }

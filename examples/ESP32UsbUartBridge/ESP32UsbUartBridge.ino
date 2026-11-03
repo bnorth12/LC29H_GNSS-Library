@@ -31,6 +31,7 @@ HardwareSerial& usbUartPort = Serial0;
 LC29H_GNSS gnss(gnssPort, &Serial);
 LC29H_GNSS::RawIngressStats ingressStats;
 uint32_t bytesFromGnss = 0;
+uint32_t linkHolds = 0;
 uint32_t lastStatusMs = 0;
 bool bridgeEnabled = false;
 uint32_t startupChecksPassed = 0;
@@ -169,7 +170,12 @@ void loop() {
     // Raw passthrough for QGNSS: do not CRC-frame here. Host bytes in first,
     // then GNSS bytes out. One reader on Serial1; do not also open QGNSS on it.
     gnss.ingestRawAvailable(usbUartPort, 0, &ingressStats, LC29H_CFG_ROVER_CORRECTION_CHUNK_SIZE);
-    bytesFromGnss += static_cast<uint32_t>(gnss.forwardAvailable(usbUartPort, 0));
+    // Hold GNSS bytes in the driver when the USB-UART TX buffer is full.
+    if (usbUartPort.availableForWrite() <= 0) {
+        ++linkHolds;
+    } else {
+        bytesFromGnss += static_cast<uint32_t>(gnss.forwardAvailable(usbUartPort, 0));
+    }
 
     const uint32_t now = millis();
     if ((now - lastStatusMs) >= kStatusIntervalMs) {
@@ -181,6 +187,8 @@ void loop() {
         Serial.print(ingressStats.shortWrites);
         Serial.print(", bytesFromGnss=");
         Serial.print(bytesFromGnss);
+        Serial.print(", linkHolds=");
+        Serial.print(linkHolds);
         Serial.print(", startupChecks=");
         Serial.print(startupChecksPassed);
         Serial.print("/");

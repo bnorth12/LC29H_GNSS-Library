@@ -135,11 +135,13 @@ void loop() {
     if ((now - lastStatusMs) >= kStatusIntervalMs) {
         LC29H_GNSS::printBridgeStatus(Serial, "StreamBridge", bridgeMode, bridgeStats, now);
 #if defined(ARDUINO_ARCH_ESP32)
-        const LC29H_UartPump::PumpHealth health = uartPump.pumpHealth();
+        const LC29H_UartPump::PumpHealth health = LC29H_HostPump::snapshotHealth(uartPump);
         Serial.print("pump frames=");
         Serial.print(health.frames);
         Serial.print(" drops=");
         Serial.print(health.drops);
+        Serial.print(" txDrops=");
+        Serial.print(LC29H_HostPump::txDropCount());
         Serial.print(" high=");
         Serial.println(health.drainHighWater);
 #endif

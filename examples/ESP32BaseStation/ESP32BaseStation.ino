@@ -143,13 +143,15 @@ void loop() {
 
     const uint32_t now = millis();
     if ((now - lastStatusMs) >= kStatusIntervalMs) {
-        const LC29H_UartPump::PumpHealth health = uartPump.pumpHealth();
+        const LC29H_UartPump::PumpHealth health = LC29H_HostPump::snapshotHealth(uartPump);
         Serial.print("ESP32BaseStation: bytes=");
         Serial.print(health.bytesIn);
         Serial.print(", frames=");
         Serial.print(health.frames);
         Serial.print(", drops=");
         Serial.print(health.drops);
+        Serial.print(" txDrops=");
+        Serial.print(LC29H_HostPump::txDropCount());
         Serial.print(", high=");
         Serial.print(health.drainHighWater);
         Serial.print(", gap=");

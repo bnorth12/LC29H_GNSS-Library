@@ -18,6 +18,7 @@ static const uint32_t kGnssBaud = 115200;
 
 static char gCmdBuf[96];
 static uint8_t gCmdLen = 0;
+static uint32_t consoleDrops = 0;
 
 static bool startsWith(const char* text, const char* prefix) {
     while (*prefix != '\0') {
@@ -207,7 +208,15 @@ void loop() {
     static uint32_t nmeaFed = 0;
     while (n < 64 && gnssPort.available() > 0) {
         const uint8_t b = static_cast<uint8_t>(gnssPort.read());
+#if defined(ARDUINO_ARCH_ESP32)
+        if (Serial.availableForWrite() <= 0) {
+            ++consoleDrops;
+        } else {
+            Serial.write(b);
+        }
+#else
         Serial.write(b);
+#endif
         nmeaFed += LC29H_NmeaFeed::feedNmeaBytes(&b, 1, [](uint8_t, void*) {}, nullptr);
         ++n;
     }
@@ -230,5 +239,13 @@ void loop() {
         if (gCmdLen + 1 < sizeof(gCmdBuf)) {
             gCmdBuf[gCmdLen++] = c;
         }
+    }
+
+    static uint32_t lastDropPrint = 0;
+    const uint32_t nowMs = millis();
+    if (consoleDrops != 0 && static_cast<uint32_t>(nowMs - lastDropPrint) >= 2000) {
+        lastDropPrint = nowMs;
+        Serial.print("consoleDrops=");
+        Serial.println(consoleDrops);
     }
 }

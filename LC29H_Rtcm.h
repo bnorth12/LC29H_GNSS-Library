@@ -19,9 +19,11 @@
 
 // RTCM3 frame assembly and CRC-24Q. Use on BLE/UART ingress before writeRaw()
 // so a partial notify cannot poison the GNSS UART.
-// Per-type totals move to TinyRTCM3 StreamStats when that header is present
-// and the sketch calls setStreamStats(). Coarse framesOk / crcFails / lastType
-// stay here because this assembler is the ingress CRC guard.
+// Assembler and Counters are a one-release shim. Per-type fields are copied
+// from tinyrtcm3::StreamStats when that header is present (an owned stats
+// object is used until setStreamStats). Without TinyRTCM3 the old 1005/1006
+// MSM4/MSM7 increments stay inside this assembler. framesOk / crcFails /
+// lastType remain the ingress CRC guard.
 
 namespace LC29H_Rtcm {
 
@@ -48,7 +50,7 @@ inline uint16_t messageType(const uint8_t* frame, size_t len) {
         (static_cast<uint16_t>(frame[3]) << 4) | (static_cast<uint16_t>(frame[4]) >> 4));
 }
 
-struct Counters {
+struct [[deprecated("one-release shim; use tinyrtcm3::StreamStats")]] Counters {
     uint32_t framesOk = 0;
     uint32_t crcFails = 0;
     // Kept so older sketches still compile. Not updated in 0.3.0.
@@ -60,7 +62,7 @@ struct Counters {
     uint16_t lastType = 0;
 };
 
-class Assembler {
+class [[deprecated("one-release shim; use tinyrtcm3::StreamStats")]] Assembler {
 public:
     void reset() {
         _len = 0;
@@ -142,16 +144,35 @@ private:
         }
         ++counters.framesOk;
         counters.lastType = messageType(_buf, _expected);
+        noteType(counters, counters.lastType, _expected);
+        reset();
+    }
+
+    void noteType(Counters& counters, uint16_t type, size_t frameLen) {
 #if LC29H_HAS_TINYRTCM3
-        if (_stats != nullptr) {
-            tinyrtcm3::statsOnCrcPass(_stats, counters.lastType, _expected, _nowMs);
+        tinyrtcm3::StreamStats* stats = (_stats != nullptr) ? _stats : &_owned;
+        tinyrtcm3::statsOnCrcPass(stats, type, frameLen, _nowMs);
+        counters.msg1005 = stats->type1005;
+        counters.msg1006 = stats->type1006;
+        counters.msm4 = stats->typeMsm4;
+        counters.msm7 = stats->typeMsm7;
+#else
+        (void)frameLen;
+        if (type == 1005) {
+            ++counters.msg1005;
+        } else if (type == 1006) {
+            ++counters.msg1006;
+        } else if (type >= 1071 && type <= 1127 && (type % 10) == 4) {
+            ++counters.msm4;
+        } else if (type >= 1071 && type <= 1127 && (type % 10) == 7) {
+            ++counters.msm7;
         }
 #endif
-        reset();
     }
 
 #if LC29H_HAS_TINYRTCM3
     tinyrtcm3::StreamStats* _stats = nullptr;
+    tinyrtcm3::StreamStats _owned;
     uint32_t _nowMs = 0;
 #endif
 };

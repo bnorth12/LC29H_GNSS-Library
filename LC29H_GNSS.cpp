@@ -1814,6 +1814,11 @@ size_t LC29H_GNSS::forwardAvailable(Stream& out, size_t maxBytes) {
         if (maxBytes > 0 && forwarded >= maxBytes) {
             break;
         }
+#if defined(ARDUINO_ARCH_ESP32)
+        if (out.availableForWrite() <= 0) {
+            break;
+        }
+#endif
 
         const int b = _gnss.read();
         if (b < 0) {
