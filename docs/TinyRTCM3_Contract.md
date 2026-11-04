@@ -7,7 +7,8 @@ other in either direction.
   it, or changes class layout based on its presence (removed in 0.3.2; the earlier
   `LC29H_HAS_TINYRTCM3` gate risked ODR / sizeof mismatches between translation units).
 - `library.properties` has no `depends=` on TinyRTCM3.
-- `LC29H_UartPump` and `LC29H_Rtcm::Assembler` have no `setStreamStats()`. The pump frames
+- There is no stream-stats hook on `LC29H_UartPump` or `LC29H_Rtcm::Assembler` (the old
+  TinyRTCM3 stats hook was removed in 0.3.2; do not look for it). The pump frames
   RTCM and checks CRC-24Q itself and exposes whole frames plus `PumpHealth`.
 - LC29H_GNSS examples use only LC29H_GNSS. Any sketch that needs both libraries lives in
   the application repo (for example esp32s3-lc29h-base-station), which wires LC29H output
