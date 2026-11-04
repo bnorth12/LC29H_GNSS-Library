@@ -1,31 +1,21 @@
-# TinyRTCM3 contract (pointer)
+# TinyRTCM3 independence contract
 
-## Hard rule: optional peer
+LC29H_GNSS and TinyRTCM3 are **fully independent libraries**. Neither depends on the
+other in either direction.
 
-**TinyRTCM3 is optional.** LC29H_GNSS must compile, link, and run its public API and
-examples **without** TinyRTCM3 on the include path or in package manifests.
+- No LC29H_GNSS source or header includes `<TinyRTCM3.h>`, uses `__has_include` to detect
+  it, or changes class layout based on its presence (removed in 0.3.2; the earlier
+  `LC29H_HAS_TINYRTCM3` gate risked ODR / sizeof mismatches between translation units).
+- `library.properties` has no `depends=` on TinyRTCM3.
+- `LC29H_UartPump` and `LC29H_Rtcm::Assembler` have no `setStreamStats()`. The pump frames
+  RTCM and checks CRC-24Q itself and exposes whole frames plus `PumpHealth`.
+- LC29H_GNSS examples use only LC29H_GNSS. Any sketch that needs both libraries lives in
+  the application repo (for example esp32s3-lc29h-base-station), which wires LC29H output
+  frames into TinyRTCM3.
+- CI enforces this with an independence check that fails on any TinyRTCM3 reference in
+  sources or examples.
 
-v0.3.0 wires the optional peer with `#if __has_include(<TinyRTCM3.h>)` inside
-`LC29H_Rtcm.h` and `LC29H_UartPump.h` only. Per-type CRC-pass counts go to
-`tinyrtcm3::StreamStats` when a sketch calls `setStreamStats()`. Framing and the
-CRC-24Q ingress guard stay in this library. There is no `depends=` line.
-
-| May | Must not |
-|-----|----------|
-| Apps use LC29H alone, TinyRTCM3 alone, or both | List TinyRTCM3 as a required dependency of this library |
-| Ship a separate opt-in example that `#include`s TinyRTCM3 | `#include` TinyRTCM3 from required public headers |
-| Document Hub as a recommended RTCM pipe | Break existing sketches when TinyRTCM3 is absent |
-
-## Ownership split
-
-LC29H_GNSS owns **Quectel config + UART pump / NMEA**. RTCM 3 framing, CRC-24Q,
-type identification, filter/emit, and selective codecs live in **TinyRTCM3**.
-
-Normative docs in the TinyRTCM3 repo:
+Normative RTCM docs live in the TinyRTCM3 repo:
 
 - https://github.com/bnorth12/TinyRTCM3/blob/main/docs/ARCHITECTURE.md
 - https://github.com/bnorth12/TinyRTCM3/blob/main/docs/INTEGRATION.md
-
-Do not add a second RTCM assembler here during TinyRTCM3 Phase A-B.
-Optional side-by-side consume is Phase B; any pump cutover is an **application**
-choice (Phase C), not a forced dependency of this library package.

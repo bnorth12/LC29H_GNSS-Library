@@ -8,7 +8,7 @@ Configuration-focused Arduino library for Quectel **LC29H(BA), LC29H(BS), LC29H(
 
 ## Version 0.3.0
 
-Optional TinyRTCM3 peer: when `<TinyRTCM3.h>` is on the include path, RTCM per-type counts go to `tinyrtcm3::StreamStats` via `setStreamStats()`. This library still frames RTCM and checks CRC-24Q itself. `library.properties` does not `depends=` TinyRTCM3. `LC29H_UartPump::PumpHealth` is a POD snapshot (`pumpHealth()`): bytes in, frames, drops, drain high-water, max gap, CRC fails. `LC29H_NmeaFeed` feeds lines or bytes into a TinyGPS++-style `encode(char)` without including TinyGPS++. `disableSurveyIn()` sends `PQTMCFGSVIN,W,0,0,0,0,0,0`.
+Standalone: this library has no dependency on TinyRTCM3 (or any RTCM decoder) in either direction. It frames RTCM and checks CRC-24Q itself; an application that wants per-type RTCM statistics or decoding pops frames from `LC29H_UartPump` and hands them to its own RTCM layer (for example TinyRTCM3, wired in the app, not here). `LC29H_UartPump::PumpHealth` is a POD snapshot (`pumpHealth()`): bytes in, frames, drops, drain high-water, max gap, CRC fails. `LC29H_NmeaFeed` feeds lines or bytes into a TinyGPS++-style `encode(char)` without including TinyGPS++. `disableSurveyIn()` sends `PQTMCFGSVIN,W,0,0,0,0,0,0`.
 
 ## Version 0.2.16
 
@@ -1115,10 +1115,10 @@ Protocol PDFs in Temp should remain the final authority before locking API behav
 - Add platform examples for ESP32, AVR, and dual-UART boards
 - Add unit tests for checksum and coordinate conversion
 
-## RTCM framing (TinyRTCM3)
+## RTCM framing and RTCM libraries
 
-UART/NMEA/Quectel config stay here. RTCM assemble/CRC/type/filter belongs in **TinyRTCM3** (**optional peer** — this library does **not** require it).
-Contract + phased integration: [docs/TinyRTCM3_Contract.md](docs/TinyRTCM3_Contract.md).
+UART/NMEA/Quectel config stay here. This library only frames RTCM and checks CRC-24Q so it can forward whole frames. Decoding, per-type statistics and filtering belong in a separate RTCM library chosen by the application. LC29H_GNSS never includes such a library, and its examples use only LC29H_GNSS.
+Independence contract: [docs/TinyRTCM3_Contract.md](docs/TinyRTCM3_Contract.md).
 
 ## Gated outputs / mode-specific messages
 

@@ -34,9 +34,6 @@ HardwareSerial& rtcmPort = Serial2;
 
 LC29H_GNSS gnss(gnssPort, &Serial);
 LC29H_UartPump::Pump uartPump;
-#if LC29H_HAS_TINYRTCM3
-tinyrtcm3::StreamStats rtcmStats;
-#endif
 LC29H_GNSS::BridgeState bridgeState;
 LC29H_GNSS::BridgeStats bridgeStats;
 LC29H_GNSS::BridgeMode bridgeMode = LC29H_GNSS::BridgeMode::RtcmAndNmeaAllowlist;
@@ -69,9 +66,6 @@ void setup() {
 
     LC29H_HostPump::beginGnss(
         gnssPort, kGnssBaud, kGnssRxPin, kGnssTxPin, uartPump, LC29H_UartPump::baseStationPriorities());
-#if LC29H_HAS_TINYRTCM3
-    uartPump.setStreamStats(&rtcmStats);
-#endif
     rtcmPort.begin(kRtcmBaud, SERIAL_8N1, kRtcmRxPin, kRtcmTxPin);
 
     gnss.attachConsole(Serial);
@@ -158,11 +152,6 @@ void loop() {
         Serial.print(health.maxGapMs);
         Serial.print(", crcFail=");
         Serial.print(health.crcFails);
-#if LC29H_HAS_TINYRTCM3
-        const tinyrtcm3::TypeRow* arp = tinyrtcm3::statsFindTypeConst(&rtcmStats, 1005);
-        Serial.print(", t1005=");
-        Serial.print(arp != nullptr ? arp->count : 0);
-#endif
         Serial.print(", uptimeMs=");
         Serial.println(now);
         (void)LC29H_NmeaFeed::feedNmeaBytes("", [](uint8_t, void*) {}, nullptr);

@@ -3,27 +3,13 @@
 #include <Arduino.h>
 #include <LC29H_GNSS.h>
 
-// Optional peer. Absent TinyRTCM3 must still compile this header.
-#if !defined(LC29H_HAS_TINYRTCM3)
-#  if defined(__has_include)
-#    if __has_include(<TinyRTCM3.h>)
-#      include <TinyRTCM3.h>
-#      define LC29H_HAS_TINYRTCM3 1
-#    else
-#      define LC29H_HAS_TINYRTCM3 0
-#    endif
-#  else
-#    define LC29H_HAS_TINYRTCM3 0
-#  endif
-#endif
-
 // RTCM3 frame assembly and CRC-24Q. Use on BLE/UART ingress before writeRaw()
 // so a partial notify cannot poison the GNSS UART.
-// Assembler and Counters are a one-release shim. Per-type fields are copied
-// from tinyrtcm3::StreamStats when that header is present (an owned stats
-// object is used until setStreamStats). Without TinyRTCM3 the old 1005/1006
-// MSM4/MSM7 increments stay inside this assembler. framesOk / crcFails /
-// lastType remain the ingress CRC guard.
+// Self-contained: this library has no dependency on any RTCM decoder library.
+// Assembler and Counters are a one-release shim. framesOk / crcFails /
+// lastType are the ingress CRC guard; the 1005/1006/MSM4/MSM7 counters are
+// incremented by noteType() for every CRC-passing frame. Apps that want richer
+// per-type statistics should pass frames to their own RTCM layer.
 
 namespace LC29H_Rtcm {
 
@@ -50,11 +36,10 @@ inline uint16_t messageType(const uint8_t* frame, size_t len) {
         (static_cast<uint16_t>(frame[3]) << 4) | (static_cast<uint16_t>(frame[4]) >> 4));
 }
 
-struct [[deprecated("one-release shim; use tinyrtcm3::StreamStats")]] Counters {
+struct [[deprecated("one-release shim; use LC29H_UartPump framing and app-side RTCM stats")]] Counters {
     uint32_t framesOk = 0;
     uint32_t crcFails = 0;
-    // Kept so older sketches still compile. Not updated in 0.3.0.
-    // Per-type counts live on tinyrtcm3::StreamStats when LC29H_HAS_TINYRTCM3.
+    // Updated by Assembler::noteType() on every CRC-passing frame.
     uint32_t msg1005 = 0;
     uint32_t msg1006 = 0;
     uint32_t msm4 = 0;
@@ -62,19 +47,13 @@ struct [[deprecated("one-release shim; use tinyrtcm3::StreamStats")]] Counters {
     uint16_t lastType = 0;
 };
 
-class [[deprecated("one-release shim; use tinyrtcm3::StreamStats")]] Assembler {
+class [[deprecated("one-release shim; use LC29H_UartPump framing and app-side RTCM stats")]] Assembler {
 public:
     void reset() {
         _len = 0;
         _expected = 0;
         _phase = 0;
     }
-
-#if LC29H_HAS_TINYRTCM3
-    void setStreamStats(tinyrtcm3::StreamStats* stats) { _stats = stats; }
-    // 0 skips lastSeen / gap / rate inside TinyRTCM3.
-    void setNowMs(uint32_t nowMs) { _nowMs = nowMs; }
-#endif
 
     void feed(uint8_t b, LC29H_GNSS& dest, LC29H_GNSS::RawIngressStats* stats, Counters& counters) {
         if (_phase == 0) {
@@ -149,14 +128,6 @@ private:
     }
 
     void noteType(Counters& counters, uint16_t type, size_t frameLen) {
-#if LC29H_HAS_TINYRTCM3
-        tinyrtcm3::StreamStats* stats = (_stats != nullptr) ? _stats : &_owned;
-        tinyrtcm3::statsOnCrcPass(stats, type, frameLen, _nowMs);
-        counters.msg1005 = stats->type1005;
-        counters.msg1006 = stats->type1006;
-        counters.msm4 = stats->typeMsm4;
-        counters.msm7 = stats->typeMsm7;
-#else
         (void)frameLen;
         if (type == 1005) {
             ++counters.msg1005;
@@ -167,14 +138,7 @@ private:
         } else if (type >= 1071 && type <= 1127 && (type % 10) == 7) {
             ++counters.msm7;
         }
-#endif
     }
-
-#if LC29H_HAS_TINYRTCM3
-    tinyrtcm3::StreamStats* _stats = nullptr;
-    tinyrtcm3::StreamStats _owned;
-    uint32_t _nowMs = 0;
-#endif
 };
 
 }  // namespace LC29H_Rtcm

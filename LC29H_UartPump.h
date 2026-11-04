@@ -9,19 +9,6 @@
 
 #include <LC29H_GNSS.h>
 
-#if !defined(LC29H_HAS_TINYRTCM3)
-#  if defined(__has_include)
-#    if __has_include(<TinyRTCM3.h>)
-#      include <TinyRTCM3.h>
-#      define LC29H_HAS_TINYRTCM3 1
-#    else
-#      define LC29H_HAS_TINYRTCM3 0
-#    endif
-#  else
-#    define LC29H_HAS_TINYRTCM3 0
-#  endif
-#endif
-
 // Drain UART first (no parse), then frame into RTCM FIFO + latest-wins NMEA mailboxes.
 // Priority 0/1/2 and aging limits are policy: the sketch fills PriorityTable.
 //
@@ -128,11 +115,6 @@ public:
     uint16_t drainFill() const;
     PumpHealth pumpHealth() const;
 
-#if LC29H_HAS_TINYRTCM3
-    // Per-type CRC-pass accounting. The pump still frames and CRC-checks itself.
-    void setStreamStats(tinyrtcm3::StreamStats* stats) { _tinyStats = stats; }
-#endif
-
 private:
     enum class Kind : uint8_t {
         Rmc,
@@ -203,9 +185,6 @@ private:
     uint32_t _drainHighWater = 0;
     uint32_t _maxGapMs = 0;
     uint32_t _lastFrameMs = 0;
-#if LC29H_HAS_TINYRTCM3
-    tinyrtcm3::StreamStats* _tinyStats = nullptr;
-#endif
 
     void pushDrainByte(uint8_t b);
     bool popDrainByte(uint8_t& b);

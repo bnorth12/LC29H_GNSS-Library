@@ -275,12 +275,6 @@ void Pump::onRtcmComplete() {
     }
     _lastFrameMs = now;
     ++_framesOk;
-#if LC29H_HAS_TINYRTCM3
-    if (_tinyStats != nullptr) {
-        tinyrtcm3::statsOnCrcPass(
-            _tinyStats, LC29H_Rtcm::messageType(_rtcmAcc, expected), expected, now);
-    }
-#endif
     if (_rtcmCount >= kRtcmFifo) {
         _rtcmHead = static_cast<uint8_t>((_rtcmHead + 1U) % kRtcmFifo);
         --_rtcmCount;
