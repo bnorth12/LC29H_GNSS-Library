@@ -1,6 +1,6 @@
 # ESP32BaseStation
 
-ESP32-only survey-base. GNSS on Serial1, RTCM forwarded on Serial2. Not a Wi-Fi/NTRIP app — a hardware starting point.
+ESP32-only survey-base. GNSS on Serial1. Output is a single Serial2 RTCM stream (one caster path, not two slots). Not a Wi-Fi/NTRIP app — a hardware starting point. Dual USB-C in the hardware section is the dev board, not two casters.
 
 ## What it does
 

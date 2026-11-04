@@ -2,8 +2,10 @@
 #include <LC29H_ProjectConfig.h>
 
 // Dual USB-C bring-up: native USB is the Arduino console, CH340 Serial0 is a
-// raw GNSS UART for QGNSS. One host at a time. Auto-apply is off by default so
-// QGNSS owns module config. Loop: host bytes into GNSS, GNSS bytes out to host.
+// raw GNSS UART for QGNSS. One host at a time. "Dual USB-C" is the dev board,
+// not two NTRIP casters. Auto-apply is off by default so QGNSS owns module config.
+// Clear a stored survey with gnss.disableSurveyIn() (PQTMCFGSVIN mode 0) then saveConfig().
+// Loop: host bytes into GNSS, GNSS bytes out to host.
 // Message payloads: this folder's README and library Readme "Module messages in practice".
 //
 // Minimum verified hardware:
@@ -29,6 +31,7 @@ HardwareSerial& usbUartPort = Serial0;
 LC29H_GNSS gnss(gnssPort, &Serial);
 LC29H_GNSS::RawIngressStats ingressStats;
 uint32_t bytesFromGnss = 0;
+uint32_t linkHolds = 0;
 uint32_t lastStatusMs = 0;
 bool bridgeEnabled = false;
 uint32_t startupChecksPassed = 0;
@@ -167,7 +170,12 @@ void loop() {
     // Raw passthrough for QGNSS: do not CRC-frame here. Host bytes in first,
     // then GNSS bytes out. One reader on Serial1; do not also open QGNSS on it.
     gnss.ingestRawAvailable(usbUartPort, 0, &ingressStats, LC29H_CFG_ROVER_CORRECTION_CHUNK_SIZE);
-    bytesFromGnss += static_cast<uint32_t>(gnss.forwardAvailable(usbUartPort, 0));
+    // Hold GNSS bytes in the driver when the USB-UART TX buffer is full.
+    if (usbUartPort.availableForWrite() <= 0) {
+        ++linkHolds;
+    } else {
+        bytesFromGnss += static_cast<uint32_t>(gnss.forwardAvailable(usbUartPort, 0));
+    }
 
     const uint32_t now = millis();
     if ((now - lastStatusMs) >= kStatusIntervalMs) {
@@ -179,6 +187,8 @@ void loop() {
         Serial.print(ingressStats.shortWrites);
         Serial.print(", bytesFromGnss=");
         Serial.print(bytesFromGnss);
+        Serial.print(", linkHolds=");
+        Serial.print(linkHolds);
         Serial.print(", startupChecks=");
         Serial.print(startupChecksPassed);
         Serial.print("/");

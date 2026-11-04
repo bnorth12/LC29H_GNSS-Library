@@ -867,6 +867,11 @@ bool LC29H_GNSS::configureBaseSurveyIn(uint32_t minTimeSec, float minStdDevM) {
     return setReceiverModeBase() && sendPayload(payload);
 }
 
+bool LC29H_GNSS::disableSurveyIn() {
+    // Mode 0 is the same PQTMCFGSVIN family as survey-in (mode 1) and fixed ECEF (mode 2).
+    return sendPayload("PQTMCFGSVIN,W,0,0,0,0,0,0");
+}
+
 bool LC29H_GNSS::querySurveyIn() {
     return sendPayload("PQTMCFGSVIN,R");
 }
@@ -1809,6 +1814,11 @@ size_t LC29H_GNSS::forwardAvailable(Stream& out, size_t maxBytes) {
         if (maxBytes > 0 && forwarded >= maxBytes) {
             break;
         }
+#if defined(ARDUINO_ARCH_ESP32)
+        if (out.availableForWrite() <= 0) {
+            break;
+        }
+#endif
 
         const int b = _gnss.read();
         if (b < 0) {
@@ -2424,7 +2434,7 @@ const LC29H_GNSS::CommandMetadata kKnownMetadata[] = {
     {"PQTMCFGNMEADP", "set/queryNmeaPrecision", LC29H_GNSS::CommandFamily::CoreConfiguration, LC29H_GNSS::CommandDirection::ReadWrite, LC29H_GNSS::CommandAckKind::StatusLine, "NMEA decimal precision", nullptr, nullptr, false, false, true, kEmptyFieldList, 0, &kStatusLineResponse, kEmptyFieldList, 0},
     {"PQTMCFGNMEATID", "set/queryNmeaTalkerId", LC29H_GNSS::CommandFamily::CoreConfiguration, LC29H_GNSS::CommandDirection::ReadWrite, LC29H_GNSS::CommandAckKind::StatusLine, "NMEA talker ID control", nullptr, nullptr, false, false, true, kEmptyFieldList, 0, &kStatusLineResponse, kEmptyFieldList, 0},
     {"PQTMCFGPPS", "set/queryPulsePerSecondConfig", LC29H_GNSS::CommandFamily::CoreConfiguration, LC29H_GNSS::CommandDirection::ReadWrite, LC29H_GNSS::CommandAckKind::StatusLine, "Pulse-per-second configuration", nullptr, nullptr, false, false, true, kPpsRequestFields, 0, &kStatusLineResponse, kEmptyFieldList, 0},
-    {"PQTMCFGSVIN", "configureBaseSurveyIn/querySurveyIn", LC29H_GNSS::CommandFamily::SurveyAndBase, LC29H_GNSS::CommandDirection::ReadWrite, LC29H_GNSS::CommandAckKind::StatusLine, "Survey-In and fixed-base workflow", nullptr, nullptr, true, true, true, kBaseSurveyRequestFields, 0, &kStatusLineResponse, kEmptyFieldList, 0},
+    {"PQTMCFGSVIN", "configureBaseSurveyIn/disableSurveyIn/querySurveyIn", LC29H_GNSS::CommandFamily::SurveyAndBase, LC29H_GNSS::CommandDirection::ReadWrite, LC29H_GNSS::CommandAckKind::StatusLine, "Survey-In, disable, and fixed-base workflow", nullptr, nullptr, true, true, true, kBaseSurveyRequestFields, 0, &kStatusLineResponse, kEmptyFieldList, 0},
     {"PQTMCFGBASE", "configureBaseFixed", LC29H_GNSS::CommandFamily::SurveyAndBase, LC29H_GNSS::CommandDirection::Write, LC29H_GNSS::CommandAckKind::StatusLine, "Fixed-base latitude/longitude/altitude setup", nullptr, nullptr, true, true, true, kBaseFixedRequestFields, 0, &kStatusLineResponse, kEmptyFieldList, 0},
     {"PQTMPVT", "queryPvt", LC29H_GNSS::CommandFamily::OutputAndDiagnostics, LC29H_GNSS::CommandDirection::Read, LC29H_GNSS::CommandAckKind::DirectData, "PVT output query", nullptr, nullptr, false, false, true, kEmptyFieldList, 0, &kStatusLineResponse, kEmptyFieldList, 0},
     {"PQTMVEL", "queryVelocity", LC29H_GNSS::CommandFamily::OutputAndDiagnostics, LC29H_GNSS::CommandDirection::Read, LC29H_GNSS::CommandAckKind::DirectData, "Velocity output query", nullptr, nullptr, false, false, true, kEmptyFieldList, 0, &kStatusLineResponse, kEmptyFieldList, 0},

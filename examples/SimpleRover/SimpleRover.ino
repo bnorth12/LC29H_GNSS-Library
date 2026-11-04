@@ -2,6 +2,8 @@
 #include <LC29H_ProjectConfig.h>
 #if defined(ARDUINO_ARCH_ESP32)
 #include <LC29H_UartPump.h>
+#include <LC29H_HostPump.h>
+#include <LC29H_NmeaFeed.h>
 #endif
 
 // Simple rover: RTCM in is the mission; GGA/RMC out for GIS.
@@ -113,6 +115,8 @@ void setup() {
     Serial.println("Rover ready. Type help for commands.");
 }
 
+static uint32_t nmeaLineDrops = 0;
+
 void loop() {
 #if !defined(ARDUINO_AVR_MEGA2560)
     gnss.processSerialCommands();
@@ -127,9 +131,20 @@ void loop() {
     uartPump.drain(gnssPort);  // empty the driver FIFO (overwrite-oldest ring)
     uartPump.frame();          // NMEA XOR + RTCM length; bad checksums counted
     uartPump.processNmea(8, [](const char* line, void*) {
-        if (line != nullptr) {
-            Serial.println(line);
+        if (line == nullptr) {
+            return;
         }
+        struct EncodeSink {
+            bool encode(char) { return true; }
+        };
+        static EncodeSink sink;
+        LC29H_NmeaFeed::feedTinyGpsPlus(sink, line);
+        const size_t lineLen = strlen(line);
+        if (Serial.availableForWrite() < static_cast<int>(lineLen + 2)) {
+            ++nmeaLineDrops;
+            return;
+        }
+        Serial.println(line);
     }, nullptr);
 #else
     String line;
@@ -142,6 +157,19 @@ void loop() {
     const uint32_t now = millis();
     if ((now - lastStatusMs) >= kStatusIntervalMs) {
         LC29H_GNSS::printRawIngressStatus(Serial, "SimpleRover", corrStats, now);
+        const LC29H_UartPump::PumpHealth health = LC29H_HostPump::snapshotHealth(uartPump);
+        Serial.print("pump frames=");
+        Serial.print(health.frames);
+        Serial.print(" drops=");
+        Serial.print(health.drops);
+        Serial.print(" txDrops=");
+        Serial.print(LC29H_HostPump::txDropCount());
+        Serial.print(" nmeaDrops=");
+        Serial.print(nmeaLineDrops);
+        Serial.print(" high=");
+        Serial.print(health.drainHighWater);
+        Serial.print(" gap=");
+        Serial.println(health.maxGapMs);
         lastStatusMs = now;
     }
 #endif

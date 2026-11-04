@@ -369,7 +369,14 @@ void onPumpedNmea(const char* line, void* user) {
 }
 
 #if defined(LC29H_BT_ROAMER_USE_SPP)
+static uint32_t btTxDrops = 0;
+
 void sendNmeaLineToBt(const String& line) {
+    const size_t need = line.length() + 2;
+    if (btSerial.availableForWrite() < static_cast<int>(need)) {
+        ++btTxDrops;
+        return;
+    }
     btSerial.print(line);
     btSerial.print("\r\n");
     noteBtTx();
@@ -464,6 +471,8 @@ bool shouldForwardNmeaToBle(const String& line) {
     return false;
 }
 
+static uint32_t btTxDrops = 0;
+
 void sendNmeaLineToBt(const String& line) {
     if (!bleClientConnected || bleTxChar == nullptr) {
         return;
@@ -471,12 +480,14 @@ void sendNmeaLineToBt(const String& line) {
     if (!bleNotifySubscribed) {
         return;
     }
-    noteBtTx();
 
     const size_t lineLen = line.length();
-    if (lineLen < 6 || lineLen + 2 > kBleNotifyMaxPayload) {
+    // One notify is one sentence. A sentence that does not fit is dropped whole.
+    if (lineLen < 6 || lineLen + 2 > bleNotifyPayloadSize() || lineLen + 2 > kBleNotifyMaxPayload) {
+        ++btTxDrops;
         return;
     }
+    noteBtTx();
     uint8_t framed[kBleNotifyMaxPayload];
     memcpy(framed, line.c_str(), lineLen);
     framed[lineLen] = '\r';
@@ -752,6 +763,7 @@ void loop() {
     }
 #endif
 
+    // UART pump cadence: every loop pass on this task. No delay() in loop.
     uartPump.drain(gnssPort);
     uartPump.frame();
     uartPump.processNmea(8, onPumpedNmea, nullptr);  // checksum-good GGA/RMC/GSA/EPE only
@@ -822,24 +834,36 @@ void loop() {
         dbg.print((lastBtTxMs != 0 && (now - lastBtTxMs) < 2000) ? "yes" : "no");
         dbg.print(", bleRxOk=");
         dbg.print((lastBtRxMs != 0 && (now - lastBtRxMs) < 5000) ? "yes" : "no");
+        static portMUX_TYPE snapMux = portMUX_INITIALIZER_UNLOCKED;
+        portENTER_CRITICAL(&snapMux);
+        const LC29H_UartPump::PumpHealth health = uartPump.pumpHealth();
+        const uint32_t snapFrames = rtcmCounters.framesOk;
+        const uint32_t snapCrc = rtcmCounters.crcFails;
+        const uint16_t snapType = rtcmCounters.lastType;
+        const uint32_t snapCk = uartPump.checksumFails();
+        const uint32_t snapDrain = uartPump.drainOverruns();
+        const uint32_t snapBtDrops = btTxDrops;
+        portEXIT_CRITICAL(&snapMux);
         dbg.print(", nmeaCkFail=");
-        dbg.print(uartPump.checksumFails());
+        dbg.print(snapCk);
         dbg.print(", drainOvf=");
-        dbg.print(uartPump.drainOverruns());
+        dbg.print(snapDrain);
+        dbg.print(", btTxDrops=");
+        dbg.print(snapBtDrops);
+        dbg.print(", pumpFrames=");
+        dbg.print(health.frames);
+        dbg.print(", pumpDrops=");
+        dbg.print(health.drops);
+        dbg.print(", pumpHigh=");
+        dbg.print(health.drainHighWater);
+        dbg.print(", pumpGap=");
+        dbg.print(health.maxGapMs);
         dbg.print(", rtcmOk=");
-        dbg.print(rtcmCounters.framesOk);
+        dbg.print(snapFrames);
         dbg.print(", rtcmCrcFail=");
-        dbg.print(rtcmCounters.crcFails);
-        dbg.print(", t1005=");
-        dbg.print(rtcmCounters.msg1005);
-        dbg.print(", t1006=");
-        dbg.print(rtcmCounters.msg1006);
-        dbg.print(", msm4=");
-        dbg.print(rtcmCounters.msm4);
-        dbg.print(", msm7=");
-        dbg.print(rtcmCounters.msm7);
+        dbg.print(snapCrc);
         dbg.print(", lastRtcm=");
-        dbg.print(rtcmCounters.lastType);
+        dbg.print(snapType);
     #endif
         dbg.print(", uptimeMs=");
         dbg.println(now);

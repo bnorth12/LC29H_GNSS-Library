@@ -4,6 +4,20 @@ on:
   push:
 
 jobs:
+  independence:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: No TinyRTCM3 dependency in sources or examples
+        shell: bash
+        run: |
+          if grep -rniE 'tinyrtcm3|LC29H_HAS_TINYRTCM3' --include='*.h' --include='*.cpp' --include='*.ino' --include='library.properties' .; then
+            echo "LC29H_GNSS must not reference TinyRTCM3."
+            exit 1
+          fi
+
   compile:
     runs-on: ubuntu-latest
     strategy:

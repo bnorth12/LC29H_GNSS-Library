@@ -59,6 +59,20 @@ inline PriorityTable roverGisPriorities() {
 typedef void (*NmeaHandler)(const char* line, void* user);
 typedef void (*RtcmHandler)(const uint8_t* frame, size_t len, void* user);
 
+// POD snapshot. drops = drain overruns + RTCM FIFO drops + CRC rejects.
+struct PumpHealth {
+    uint32_t bytesIn = 0;
+    uint32_t frames = 0;
+    uint32_t drops = 0;
+    uint32_t drainHighWater = 0;
+    uint32_t maxGapMs = 0;
+    uint32_t checksumFails = 0;
+    uint32_t crcFails = 0;
+    uint32_t lastDrainBytes = 0;
+    uint16_t drainFill = 0;
+    uint8_t rtcmQueued = 0;
+};
+
 class Pump {
 public:
     static constexpr size_t kDrainCap = 8192;
@@ -99,6 +113,7 @@ public:
     uint8_t gsvSkipped() const { return _gsvSkipped; }
     bool gsvDue() const { return _gsvDue; }
     uint16_t drainFill() const;
+    PumpHealth pumpHealth() const;
 
 private:
     enum class Kind : uint8_t {
@@ -164,6 +179,12 @@ private:
     uint32_t _gsvDueCount = 0;
     uint32_t _resyncs = 0;
     uint32_t _lastDrainBytes = 0;
+    uint32_t _bytesIn = 0;
+    uint32_t _framesOk = 0;
+    uint32_t _crcFails = 0;
+    uint32_t _drainHighWater = 0;
+    uint32_t _maxGapMs = 0;
+    uint32_t _lastFrameMs = 0;
 
     void pushDrainByte(uint8_t b);
     bool popDrainByte(uint8_t& b);

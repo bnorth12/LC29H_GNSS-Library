@@ -120,6 +120,19 @@ void loop() {
     // ESP32: pump (FIFO). AVR: forwardBridgeAvailable (15 ms cap, no 8 kB ring).
     LC29H_HostPump::tick(gnssPort, uartPump);
     LC29H_HostPump::processTo(uartPump, nullptr, &Serial);
+    static uint32_t lastHealthMs = 0;
+    if (millis() - lastHealthMs >= 5000) {
+        lastHealthMs = millis();
+        const LC29H_UartPump::PumpHealth health = LC29H_HostPump::snapshotHealth(uartPump);
+        Serial.print("pump frames=");
+        Serial.print(health.frames);
+        Serial.print(" drops=");
+        Serial.print(health.drops);
+        Serial.print(" txDrops=");
+        Serial.print(LC29H_HostPump::txDropCount());
+        Serial.print(" high=");
+        Serial.println(health.drainHighWater);
+    }
 #else
     gnss.forwardBridgeAvailable(
         discardRtcm,

@@ -178,6 +178,29 @@ void loop() {
     const uint32_t now = millis();
     if ((now - lastStatusMs) >= kStatusIntervalMs) {
         LC29H_GNSS::printRawIngressStatus(Serial, "RoverCorrectionBridge", ingressStats, now);
+#if defined(ARDUINO_ARCH_ESP32)
+        const LC29H_UartPump::PumpHealth health = LC29H_HostPump::snapshotHealth(uartPump);
+        Serial.print("pump frames=");
+        Serial.print(health.frames);
+        Serial.print(" drops=");
+        Serial.print(health.drops);
+        Serial.print(" txDrops=");
+        Serial.print(LC29H_HostPump::txDropCount());
+        Serial.print(" ckFail=");
+        Serial.print(uartPump.checksumFails());
+        Serial.print(" drainOvf=");
+        Serial.print(uartPump.drainOverruns());
+        Serial.print(" high=");
+        Serial.print(health.drainHighWater);
+        Serial.print(" gap=");
+        Serial.print(health.maxGapMs);
+        Serial.print(" rtcmOk=");
+        Serial.print(rtcmCounters.framesOk);
+        Serial.print(" rtcmCrcFail=");
+        Serial.print(rtcmCounters.crcFails);
+        Serial.print(" lastRtcm=");
+        Serial.println(rtcmCounters.lastType);
+#endif
         if (kForwardNmeaToLink) {
             LC29H_GNSS::printBridgeStatus(Serial, "RoverNmeaForward", bridgeMode, bridgeStats, now);
         }

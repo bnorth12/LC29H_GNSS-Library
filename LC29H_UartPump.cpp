@@ -1,11 +1,27 @@
 #if defined(ARDUINO_ARCH_ESP32)
 
 #include "LC29H_UartPump.h"
+#include "LC29H_Rtcm.h"
 
 namespace LC29H_UartPump {
 
 uint16_t Pump::drainFill() const {
     return static_cast<uint16_t>(_dCount);
+}
+
+PumpHealth Pump::pumpHealth() const {
+    PumpHealth health;
+    health.bytesIn = _bytesIn;
+    health.frames = _framesOk;
+    health.drops = _drainOverruns + _rtcmDrops + _crcFails;
+    health.drainHighWater = _drainHighWater;
+    health.maxGapMs = _maxGapMs;
+    health.checksumFails = _checksumFails;
+    health.crcFails = _crcFails;
+    health.lastDrainBytes = _lastDrainBytes;
+    health.drainFill = drainFill();
+    health.rtcmQueued = _rtcmCount;
+    return health;
 }
 
 void Pump::discardNmeaMailboxes() {
@@ -76,6 +92,10 @@ size_t Pump::drain(Stream& uart, Stream* tap) {
         total += got;
     }
     _lastDrainBytes = static_cast<uint32_t>(total);
+    _bytesIn += static_cast<uint32_t>(total);
+    if (_dCount > _drainHighWater) {
+        _drainHighWater = static_cast<uint32_t>(_dCount);
+    }
     return total;
 }
 
@@ -229,14 +249,40 @@ void Pump::onNmeaComplete() {
 }
 
 void Pump::onRtcmComplete() {
+    const size_t expected = _rtcmExpected;
+    const bool lengthOk = expected >= 6 && expected <= kRtcmCap && _rtcmLen >= expected;
+    bool crcOk = false;
+    if (lengthOk) {
+        const uint32_t got =
+            (static_cast<uint32_t>(_rtcmAcc[expected - 3]) << 16) |
+            (static_cast<uint32_t>(_rtcmAcc[expected - 2]) << 8) |
+            static_cast<uint32_t>(_rtcmAcc[expected - 1]);
+        crcOk = LC29H_Rtcm::crc24q(_rtcmAcc, expected - 3) == got;
+    }
+    if (!crcOk) {
+        ++_crcFails;
+        _rtcmLen = 0;
+        _rtcmExpected = 0;
+        _rtcmPhase = 0;
+        return;
+    }
+    const uint32_t now = millis();
+    if (_lastFrameMs != 0 && now >= _lastFrameMs) {
+        const uint32_t gap = now - _lastFrameMs;
+        if (gap > _maxGapMs) {
+            _maxGapMs = gap;
+        }
+    }
+    _lastFrameMs = now;
+    ++_framesOk;
     if (_rtcmCount >= kRtcmFifo) {
         _rtcmHead = static_cast<uint8_t>((_rtcmHead + 1U) % kRtcmFifo);
         --_rtcmCount;
         ++_rtcmDrops;
     }
     const uint8_t slot = static_cast<uint8_t>((_rtcmHead + _rtcmCount) % kRtcmFifo);
-    _rtcmQ[slot].len = static_cast<uint16_t>(_rtcmExpected);
-    memcpy(_rtcmQ[slot].data, _rtcmAcc, _rtcmExpected);
+    _rtcmQ[slot].len = static_cast<uint16_t>(expected);
+    memcpy(_rtcmQ[slot].data, _rtcmAcc, expected);
     ++_rtcmCount;
     _rtcmLen = 0;
     _rtcmExpected = 0;

@@ -5,6 +5,11 @@
 
 // RTCM3 frame assembly and CRC-24Q. Use on BLE/UART ingress before writeRaw()
 // so a partial notify cannot poison the GNSS UART.
+// Self-contained: this library has no dependency on any RTCM decoder library.
+// Assembler and Counters are a one-release shim. framesOk / crcFails /
+// lastType are the ingress CRC guard; the 1005/1006/MSM4/MSM7 counters are
+// incremented by noteType() for every CRC-passing frame. Apps that want richer
+// per-type statistics should pass frames to their own RTCM layer.
 
 namespace LC29H_Rtcm {
 
@@ -31,9 +36,10 @@ inline uint16_t messageType(const uint8_t* frame, size_t len) {
         (static_cast<uint16_t>(frame[3]) << 4) | (static_cast<uint16_t>(frame[4]) >> 4));
 }
 
-struct Counters {
+struct [[deprecated("one-release shim; use LC29H_UartPump framing and app-side RTCM stats")]] Counters {
     uint32_t framesOk = 0;
     uint32_t crcFails = 0;
+    // Updated by Assembler::noteType() on every CRC-passing frame.
     uint32_t msg1005 = 0;
     uint32_t msg1006 = 0;
     uint32_t msm4 = 0;
@@ -41,7 +47,7 @@ struct Counters {
     uint16_t lastType = 0;
 };
 
-class Assembler {
+class [[deprecated("one-release shim; use LC29H_UartPump framing and app-side RTCM stats")]] Assembler {
 public:
     void reset() {
         _len = 0;
@@ -117,20 +123,21 @@ private:
         }
         ++counters.framesOk;
         counters.lastType = messageType(_buf, _expected);
-        if (counters.lastType == 1005) {
+        noteType(counters, counters.lastType, _expected);
+        reset();
+    }
+
+    void noteType(Counters& counters, uint16_t type, size_t frameLen) {
+        (void)frameLen;
+        if (type == 1005) {
             ++counters.msg1005;
-        } else if (counters.lastType == 1006) {
+        } else if (type == 1006) {
             ++counters.msg1006;
-        } else if (counters.lastType == 1074 || counters.lastType == 1084 ||
-                   counters.lastType == 1094 || counters.lastType == 1114 ||
-                   counters.lastType == 1124) {
+        } else if (type >= 1071 && type <= 1127 && (type % 10) == 4) {
             ++counters.msm4;
-        } else if (counters.lastType == 1077 || counters.lastType == 1087 ||
-                   counters.lastType == 1097 || counters.lastType == 1117 ||
-                   counters.lastType == 1127) {
+        } else if (type >= 1071 && type <= 1127 && (type % 10) == 7) {
             ++counters.msm7;
         }
-        reset();
     }
 };
 

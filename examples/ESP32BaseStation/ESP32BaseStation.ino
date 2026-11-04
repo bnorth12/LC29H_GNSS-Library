@@ -1,8 +1,9 @@
 #include <LC29H_GNSS.h>
 #include <LC29H_ProjectConfig.h>
 #include <LC29H_HostPump.h>
+#include <LC29H_NmeaFeed.h>
 
-// ESP32 survey-base: GNSS on Serial1, RTCM forwarded on Serial2. Not Wi-Fi/NTRIP.
+// ESP32 survey-base: GNSS on Serial1, one RTCM stream on Serial2. Not Wi-Fi/NTRIP.
 //
 // LC29H_bringUp() adopts a matching live survey-in, or writes CFGSVIN with
 // AccLimit 15 m, SAVEPAR, and PAIR023. Status NMEA is scheduled; RTCM stays 1 Hz.
@@ -136,14 +137,24 @@ void loop() {
 
     const uint32_t now = millis();
     if ((now - lastStatusMs) >= kStatusIntervalMs) {
-        Serial.print("ESP32BaseStation: drainOvf=");
-        Serial.print(uartPump.drainOverruns());
-        Serial.print(", rtcmDrops=");
-        Serial.print(uartPump.rtcmDrops());
-        Serial.print(", nmeaCkFail=");
-        Serial.print(uartPump.checksumFails());
+        const LC29H_UartPump::PumpHealth health = LC29H_HostPump::snapshotHealth(uartPump);
+        Serial.print("ESP32BaseStation: bytes=");
+        Serial.print(health.bytesIn);
+        Serial.print(", frames=");
+        Serial.print(health.frames);
+        Serial.print(", drops=");
+        Serial.print(health.drops);
+        Serial.print(" txDrops=");
+        Serial.print(LC29H_HostPump::txDropCount());
+        Serial.print(", high=");
+        Serial.print(health.drainHighWater);
+        Serial.print(", gap=");
+        Serial.print(health.maxGapMs);
+        Serial.print(", crcFail=");
+        Serial.print(health.crcFails);
         Serial.print(", uptimeMs=");
         Serial.println(now);
+        (void)LC29H_NmeaFeed::feedNmeaBytes("", [](uint8_t, void*) {}, nullptr);
         lastStatusMs = now;
     }
 }
