@@ -6,6 +6,8 @@ Configuration-focused Arduino library for Quectel **LC29H(BA), LC29H(BS), LC29H(
 
 **New adopter?** Start here, not at the version history: **[GETTING_STARTED.md](GETTING_STARTED.md)**. Then open one folder under `examples/` and that folder’s README. Changelog sections below 0.3.0 are historical.
 
+Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
+
 ## Version 0.3.0
 
 Standalone: this library has no dependency on TinyRTCM3 (or any RTCM decoder) in either direction. It frames RTCM and checks CRC-24Q itself; an application that wants per-type RTCM statistics or decoding pops frames from `LC29H_UartPump` and hands them to its own RTCM layer (for example TinyRTCM3, wired in the app, not here). `LC29H_UartPump::PumpHealth` is a POD snapshot (`pumpHealth()`): bytes in, frames, drops, drain high-water, max gap, CRC fails. `LC29H_NmeaFeed` feeds lines or bytes into a TinyGPS++-style `encode(char)` without including TinyGPS++. `disableSurveyIn()` sends `PQTMCFGSVIN,W,0,0,0,0,0,0`.

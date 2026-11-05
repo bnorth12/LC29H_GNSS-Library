@@ -1,4 +1,5 @@
 #pragma once
+#include "LC29H_GNSS_Version.h"
 
 #include <Arduino.h>
 #include <stdlib.h>
