@@ -51,6 +51,126 @@ LC29H_GNSS::BridgeNmeaFilter bridgeFilter;
 LC29H_GNSS::LocalDebugOutputMode debugMode = LC29H_GNSS::LocalDebugOutputMode::NmeaOnly;
 bool bridgeFilterEnabled = true;
 bool bridgeEnabled = false;
+
+#if defined(ARDUINO_ARCH_ESP32)
+// HIL: count HostPump mission writes to linkPort (ESP32 path does not update bridgeStats).
+class LinkHilStream : public Stream {
+public:
+    explicit LinkHilStream(Stream& inner) : _inner(inner) {}
+    int available() override { return _inner.available(); }
+    int read() override { return _inner.read(); }
+    int peek() override { return _inner.peek(); }
+    void flush() override { _inner.flush(); }
+    int availableForWrite() override { return _inner.availableForWrite(); }
+    size_t write(uint8_t b) override {
+        const size_t n = _inner.write(b);
+        if (n) {
+            _bytes += n;
+            feed(b);
+        }
+        return n;
+    }
+    size_t write(const uint8_t* buffer, size_t size) override {
+        const size_t n = _inner.write(buffer, size);
+        for (size_t i = 0; i < n; ++i) {
+            feed(buffer[i]);
+        }
+        _bytes += n;
+        return n;
+    }
+    uint32_t bytesOut() const { return _bytes; }
+    uint32_t rtcmOk() const { return _rtcmOk; }
+    uint32_t rtcmCrcFail() const { return _rtcmCrcFail; }
+    uint32_t rtcmResync() const { return _rtcmResync; }
+
+private:
+    Stream& _inner;
+    uint32_t _bytes = 0;
+    uint32_t _rtcmOk = 0;
+    uint32_t _rtcmCrcFail = 0;
+    uint32_t _rtcmResync = 0;
+    uint8_t _st = 0;
+    uint16_t _len = 0;
+    uint16_t _got = 0;
+    uint8_t _hdr[3];
+    uint8_t _body[1024];
+    uint32_t _crc = 0;
+
+    static uint32_t crc24q(const uint8_t* data, size_t len) {
+        uint32_t crc = 0;
+        for (size_t i = 0; i < len; ++i) {
+            crc ^= static_cast<uint32_t>(data[i]) << 16;
+            for (int bit = 0; bit < 8; ++bit) {
+                crc <<= 1;
+                if (crc & 0x1000000u) {
+                    crc ^= 0x1864CFBu;
+                }
+            }
+        }
+        return crc & 0xFFFFFFu;
+    }
+
+    void feed(uint8_t b) {
+        if (_st == 0) {
+            if (b == 0xD3) {
+                _hdr[0] = b;
+                _st = 1;
+            }
+            return;
+        }
+        if (_st == 1) {
+            _hdr[1] = b;
+            _st = 2;
+            return;
+        }
+        if (_st == 2) {
+            _hdr[2] = b;
+            _len = (static_cast<uint16_t>(_hdr[1] & 0x03) << 8) | _hdr[2];
+            if (_len > 1023) {
+                ++_rtcmResync;
+                _st = 0;
+                return;
+            }
+            _got = 0;
+            _st = 3;
+            return;
+        }
+        if (_st == 3) {
+            if (_got < _len) {
+                _body[_got++] = b;
+                return;
+            }
+            if (_got == _len) {
+                _crc = static_cast<uint32_t>(b) << 16;
+                ++_got;
+                return;
+            }
+            if (_got == (_len + 1)) {
+                _crc |= static_cast<uint32_t>(b) << 8;
+                ++_got;
+                return;
+            }
+            _crc |= b;
+            uint8_t framed[3 + 1024];
+            framed[0] = _hdr[0];
+            framed[1] = _hdr[1];
+            framed[2] = _hdr[2];
+            for (uint16_t i = 0; i < _len; ++i) {
+                framed[3 + i] = _body[i];
+            }
+            const uint32_t calc = crc24q(framed, static_cast<size_t>(3 + _len));
+            if (calc == _crc) {
+                ++_rtcmOk;
+            } else {
+                ++_rtcmCrcFail;
+            }
+            _st = 0;
+        }
+    }
+};
+
+LinkHilStream linkHil(linkPort);
+#endif
 uint32_t lastStatusMs = 0;
 }
 
@@ -151,7 +271,20 @@ void loop() {
 #if defined(ARDUINO_ARCH_ESP32)
     // Mission bytes (RTCM) to linkPort; NMEA only if debug mode is NmeaOnly.
     LC29H_HostPump::tick(gnssPort, uartPump);
-    LC29H_HostPump::processTo(uartPump, &linkPort, localNmeaOut);
+    LC29H_HostPump::processTo(uartPump, &linkHil, localNmeaOut);
+        // HIL link-port egress (HostPump path; bridgeStats stay 0 on ESP32).
+        static uint32_t lastLinkHilMs = 0;
+        if ((millis() - lastLinkHilMs) >= 1000) {
+            lastLinkHilMs = millis();
+            Serial.print("HIL_LINK_BYTES=");
+            Serial.print(linkHil.bytesOut());
+            Serial.print(" HIL_LINK_RTCM_OK=");
+            Serial.print(linkHil.rtcmOk());
+            Serial.print(" HIL_LINK_RTCM_CRC_FAIL=");
+            Serial.print(linkHil.rtcmCrcFail());
+            Serial.print(" HIL_LINK_RTCM_RESYNC=");
+            Serial.println(linkHil.rtcmResync());
+        }
 #else
     gnss.forwardBridgeAvailable(
         linkPort,

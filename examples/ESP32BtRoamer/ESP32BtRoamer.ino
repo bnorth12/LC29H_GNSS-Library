@@ -345,6 +345,12 @@ void onPumpedNmea(const char* line, void* user) {
     }
     ++nmeaLinesPrinted;
     noteModuleVersionLine(String(line));
+    // HIL: surface PQTMVERNO replies (Level-1 "other" mailbox) so BLE->GNSS
+    // ingress can be proven by a module response, not just WRITE_RX / counters.
+    if (strstr(line, "PQTMVERNO") != nullptr) {
+        dbg.print("HIL_BLE_GNSS_VERNO_REPLY=");
+        dbg.println(line);
+    }
     if (strstr(line, "GGA,") != nullptr) {
         holdGga = line;
         lastGgaMs = millis();
