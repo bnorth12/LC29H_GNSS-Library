@@ -1,30 +1,24 @@
 # LC29H_GNSS
 
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
-
 [![Arduino CLI Validate](https://github.com/bnorth12/LC29H_GNSS-Library/actions/workflows/arduino-cli-validate.yml/badge.svg)](https://github.com/bnorth12/LC29H_GNSS-Library/actions/workflows/arduino-cli-validate.yml)
 
 Configuration-focused Arduino library for Quectel **LC29H(BA), LC29H(BS), LC29H(DA), and LC29H(EA)**. Wrappers exist for the union of those ICDs; not every command is legal on every variant (see **Module variants** below).
 
 **New adopter?** Start here, not at the version history: **[GETTING_STARTED.md](GETTING_STARTED.md)**. Then open one folder under `examples/` and that folder’s README. Changelog sections below 0.3.0 are historical.
 
-## Version 0.3.0
-
 Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
+
+## Version 0.3.0
 
 Standalone: this library has no dependency on TinyRTCM3 (or any RTCM decoder) in either direction. It frames RTCM and checks CRC-24Q itself; an application that wants per-type RTCM statistics or decoding pops frames from `LC29H_UartPump` and hands them to its own RTCM layer (for example TinyRTCM3, wired in the app, not here). `LC29H_UartPump::PumpHealth` is a POD snapshot (`pumpHealth()`): bytes in, frames, drops, drain high-water, max gap, CRC fails. `LC29H_NmeaFeed` feeds lines or bytes into a TinyGPS++-style `encode(char)` without including TinyGPS++. `disableSurveyIn()` sends `PQTMCFGSVIN,W,0,0,0,0,0,0`.
 
 ## Version 0.2.16
-
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
 
 `LC29H_roverFactoryBringUp` identifies `$PQTMVERNO` and **returns false for LC29H(BS)** (base-only; no rover engine). Callers must fail closed instead of setting rover mode.
 
 This library does **not** replace Quectel’s protocol/hardware PDFs or a general RTK introduction. Register on [Quectel Download Zone](https://www.quectel.com/download-zone) for the LC29H documents listed in GETTING_STARTED §7.
 
 ## Module variants
-
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
 
 Protocol sources: LC29H&LC79H Series GNSS Protocol Specification **v1.5** (BA/DA/EA and AA/CA/AL notes) and LC29H(BS) GNSS Protocol Specification **v1.1**.
 
@@ -40,8 +34,6 @@ Shared and worth exposing in the library for DA/EA/BS bases: CFGSVIN, SAVEPAR, C
 `applyBaseStatusRates()` is the DA/EA base table (GSV RATE 20, GSA 8, GLL/VTG/GNS/GRS/ZDA **off**). Rover GIS rates stay in `applyRoverGisRates()` (EA/BA).
 
 ## Current status
-
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
 
 Initial library skeleton is now implemented with:
 
@@ -83,8 +75,6 @@ Raw-data design note:
 
 ## Version 0.2.15
 
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
-
 Field work on ESP32-S3 + LC29H(DA) + SW Maps BLE NUS:
 
 - `LC29H_Rtcm`: CRC-24Q assembler so BLE/UART RTCM is only `writeRaw`'d as complete frames. Log 1005 vs MSM4/MSM7.
@@ -101,19 +91,13 @@ Identify the IC before SAVEPAR (`PQTMVERNO` / `LC29H_identifyModule`). DA, EA, B
 
 ## Version 0.2.14
 
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
-
 `LC29H_UartPump` keeps a latest-wins **Other** mailbox for NMEA/PQTM that is not RMC/GGA/SVIN/GST/GSA/GSV/EPE (`PQTMVERNO`, `PQTMSN`, `PQTMUNIQID`, `PAIR001`, …). Those lines used to be framed and discarded. Other is delivered with needed status so a 2 ms `processNmea` budget cannot drop identity replies.
 
 ## Version 0.2.13
 
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
-
 CI: SimpleBaseStation and SimpleRover now skip `processSerialCommands()` on Mega, same as the other full AVR examples (help strings were ~11 kB of `.data`). `LC29H_UartPump` stays ESP32-only so the 8 kB drain ring is not built for AVR.
 
 ## Version 0.2.12
-
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
 
 UART drain-then-mailbox pump for mixed NMEA+RTCM (the old `forwardBridgeAvailable` path still exists):
 
@@ -126,19 +110,13 @@ Failure counters the host should log: `drainOverruns` (ring lost oldest bytes), 
 
 ## Version 0.2.11
 
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
-
 Public `LC29H_GNSS::hasValidNmeaChecksum` so applications do not duplicate NMEA XOR/`*HH` on RX.
 
 ## Version 0.2.9
 
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
-
 This README **Module messages in practice**: what each PQTM/PAIR/NMEA/RTCM item does in a base or rover sketch, RATE vs Hz, DA survey-in gotchas, and which example uses which payload. Example READMEs list the subset that sketch sends.
 
 ## Version 0.2.8
-
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
 
 Helpers the examples use for DA survey-in and UART budget:
 
@@ -150,8 +128,6 @@ How each sketch uses those helpers is in `examples/README.md` and the README nex
 
 ## Version 0.2.7
 
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
-
 Survey-in and example bring-up aligned with LC29H(DA) field use:
 
 - Default AccLimit for `configureBaseSurveyIn`, `applyBaseSurveyPreset`, and `applySurveyBaseProfile` is **15 m**. Values like 0 / 1.5 / 2 left `<Obs>` at 0 on DA.
@@ -161,16 +137,12 @@ Survey-in and example bring-up aligned with LC29H(DA) field use:
 
 ## Version 0.2.6
 
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
-
 LC29H(DA) message-rate and survey-in notes:
 
 - `setMessageRate` omits `<MsgVer>` for standard NMEA (`GGA`, `GST`, …). `$PQTM` names still send MsgVer (`1`, or `2` for `PQTMEPE`).
 - `configureBaseSurveyIn` still only writes `PQTMCFGRCVRMODE,W,2` and `PQTMCFGSVIN,W,1,…`. On DA/EA those take effect after `PQTMSAVEPAR` and **`rebootModule()` / `PAIR023`** (full module reboot). `PAIR003`/`PAIR002` GNSS sleep is not enough. Default AccLimit is **15 m**. The helper does not save or restart.
 
 ## Version 0.2.5
-
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
 
 Command payloads aligned with Quectel LC29H(BS) Protocol Specification v1.1:
 
@@ -179,8 +151,6 @@ Command payloads aligned with Quectel LC29H(BS) Protocol Specification v1.1:
 - `enableRTCM(false)` uses `PAIR432,-1` to disable RTCM (0 means MSM4, not off).
 
 ## Version 0.2.4
-
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
 
 Bridge pump hardening for mixed NMEA+RTCM on ESP32:
 
@@ -195,8 +165,6 @@ Bridge pump hardening for mixed NMEA+RTCM on ESP32:
 
 ## Version 0.2.3
 
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
-
 Bridge parser hardening (mixed NMEA+RTCM on one UART):
 
 - `forwardBridgeAvailable` no longer grows `BridgeState::nmeaLine` without a bound. A false NMEA
@@ -210,8 +178,6 @@ Bridge parser hardening (mixed NMEA+RTCM on one UART):
 
 ## UART throughput budget
 
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
-
 The GNSS UART is a **single shared pipe**. Mixed NMEA + RTCM (especially MSM7 plus multi-constellation GSV) will overrun a typical ESP32 RX buffer long before it saturates the baud rate, if the sketch does not drain bytes faster than they arrive.
 
 For a base station that publishes corrections, **RTCM at the nav epoch (typically 1 Hz MSM + 1005) is the mission stream**. NMEA is status. If the UART budget is exceeded, lower NMEA `PQTMCFGMSGRATE` (GSV first). Do not slow or drop RTCM to make the dashboard prettier.
@@ -219,8 +185,6 @@ For a base station that publishes corrections, **RTCM at the nav epoch (typicall
 Treat this as a real-time budget, not as “the parser will keep up.”
 
 ### Link capacity
-
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
 
 UART 8N1 is 10 bit times per byte (start + 8 data + stop).
 
@@ -239,8 +203,6 @@ uart_bytes_per_s = baud / 10
 If `ingress_bytes_per_s` exceeds this table, bytes are lost on the wire. In practice ESP32 software RX buffers (256 default, 1024 in many sketches) overflow first.
 
 ### Ingress (what the module emits)
-
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
 
 For each enabled sentence or RTCM message:
 
@@ -277,8 +239,6 @@ Worked example, **everything at 1 Hz** on a base with MSM7:
 That is only ~25–30% of 115200 baud, so the **baud rate is not the bottleneck**. The bottleneck is draining a 1 kB buffer between loop ticks.
 
 ### Buffer and pump constraints
-
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
 
 ```
 bytes_arriving_between_pumps = ingress_bytes_per_s * pump_interval_s
@@ -318,8 +278,6 @@ Empty `available()` while TX (commands) still works is an ESP32 RX-path stall or
 
 ### How to stay inside the budget
 
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
-
 1. **Lower RATE on bulky sentences** (`setMessageRate`). GSV at RATE 10 (0.1 Hz) cuts ~1 kB/s of NMEA. `$PQTMSVINSTATUS` does not need 1 Hz for a 12 h survey-in.
 2. **Keep time/position sentences faster** (GGA/RMC at RATE 1) if the app needs 1 Hz time.
 3. **Pump often.** Interval × ingress must fit in the RX buffer. At 3 kB/s ingress, a 200 ms gap is already ~600 bytes; a 1 s gap overflows a 1 kB buffer.
@@ -327,8 +285,6 @@ Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Ve
 5. **One reader.** Do not call `readLine` / `query*` from a second path while the bridge pump owns the Stream, or you steal/split frames.
 
 ## Module messages in practice
-
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
 
 Quectel protocol PDFs list fields and ACKs. They do not say which sentences matter for a base vs a rover, what `RATE` really means, or which restart actually applies survey-in on LC29H(DA). This section is that usage note. The examples send these payloads through library helpers (`sendPayload` adds `$…*CS\r\n`).
 
@@ -344,8 +300,6 @@ Two directions on the same UART:
 
 ### RATE is not Hertz
 
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
-
 `$PQTMCFGMSGRATE,W,<MsgName>,<Rate>[,<MsgVer>]`
 
 `<Rate>` is **every N navigation epochs**. `0` disables the sentence.
@@ -358,8 +312,6 @@ Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Ve
 On LC29H(DA), **standard NMEA names omit `<MsgVer>`**. `$PQTM…` names still send it (`1`, or `2` for `PQTMEPE`). The library `setMessageRate()` does that. Hand-built payloads that always append `,1` after `GGA`/`GSV` can fail on DA.
 
 ### Commands to the module (what they actually do)
-
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
 
 | Payload | Library helper | What happens | Field notes the PDF undersells |
 | --- | --- | --- | --- |
@@ -383,8 +335,6 @@ Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Ve
 | `PQTMPVT` / `PQTMVEL` / `PQTMDOP` / `PQTMSTD` | rover profile, then often RATE 0 | Quectel binary-ish text diagnostics | GIS tools want NMEA GGA/RMC, not these. Rover examples **disable** them after the profile so UART stays on corrections + GIS sentences. |
 
 ### Sentences from the module
-
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
 
 | Sentence | Typical use | Base schedule | Rover GIS schedule |
 | --- | --- | --- | --- |
@@ -412,8 +362,6 @@ MeanAcc **`0.0000` is a placeholder until Obs > 0**. It is not “zero error” 
 
 ### Which example sends or needs which
 
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
-
 `LC29H_bringUp()` is the common path. Reduced sketches send the same payloads by hand.
 
 | Example | Role | Commands **to** GNSS | Bytes **from** GNSS it cares about |
@@ -434,8 +382,6 @@ Do not PAIR023 over a live survey-in whose MinDur/AccLimit already match. That i
 
 ## Known limits
 
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
-
 Board-driven default sizing:
 
 - Tracker enable remains opt-in through config macros.
@@ -451,8 +397,6 @@ Override behavior:
 - Keep LC29H_CFG_*_ACCURACY_TRACK_MAX_POINTS at 0 to use board-driven defaults.
 
 ## Folder layout
-
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
 
 Arduino 1.0 (flat) layout: sources and metadata live in the library root, not `src/`. Arduino IDE 1.5+ still compiles this.
 
@@ -473,8 +417,6 @@ Sketch > Include Library inserts only `LC29H_GNSS.h` (see `includes=` in `librar
 
 ## Quick start
 
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
-
 1. Read **[GETTING_STARTED.md](GETTING_STARTED.md)** (which example to open, boot order, field pitfalls, Quectel Download Zone).
 2. Copy this repository into your Arduino `libraries` folder, or clone it there as `LC29H_GNSS`.
 3. Open the example folder you want and edit **that** folder’s `lc29hconfig.h` (pins, role).
@@ -489,8 +431,6 @@ Example config behavior:
 
 ## Minimal examples
 
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
-
 Each sketch folder has a README that matches the comments at the top of the `.ino`. Index: examples/README.md.
 
 - SimpleRover: ingest RTCM (ESP32 Serial2) first, publish GGA+RMC every epoch for GIS.
@@ -503,8 +443,6 @@ Each sketch folder has a README that matches the comments at the top of the `.in
 
 ## Reduced capability examples (UNO/Micro/Feather class)
 
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
-
 - ReducedCommandConsole: typed payloads, `save`/`reboot` (PAIR023), no LC29H_GNSS object.
 - ReducedSerialBridge: raw USB Serial <-> GNSS UART, one reader each side.
 
@@ -514,8 +452,6 @@ Default serial wiring in reduced examples:
 - Boards without Serial1 (for example UNO): use SoftwareSerial on RX=4, TX=3.
 
 ## Bench pair: base + rover over simple serial wires
-
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
 
 Use two Arduino boards and two GNSS modules:
 
@@ -558,8 +494,6 @@ Bring-up steps:
 
 ## Stream bridge example
 
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
-
 - StreamBridge: examples/StreamBridge/StreamBridge.ino
   - Demonstrates forwarding GNSS output to an upstream stream for caster/bridge use.
   - Uses the library bridge parser API (forwardBridgeAvailable) rather than sketch-local parsing logic.
@@ -567,8 +501,6 @@ Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Ve
   - Bridge mode and NMEA allowlist are configurable from lc29hconfig.h.
 
 ## ESP32 base station example
-
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
 
 - ESP32BaseStation: examples/ESP32BaseStation/ESP32BaseStation.ino
   - ESP32-only example with GNSS on Serial1 and RTCM/link output on Serial2.
@@ -580,8 +512,6 @@ Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Ve
   - Intended as a hardware-specific starting point, not a full Wi-Fi/NTRIP application.
 
 ## ESP32 USB-UART bridge example
-
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
 
 - ESP32UsbUartBridge: examples/ESP32UsbUartBridge/ESP32UsbUartBridge.ino
   - Uses native USB Serial for logs and interactive library commands.
@@ -612,8 +542,6 @@ Useful bridge toggles in examples/ESP32UsbUartBridge/lc29hconfig.h:
 3. LC29H_CFG_ESP32_USB_UART_BRIDGE_STARTUP_SANITY_CHECKS
 
 ## ESP32 Bluetooth rover example
-
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
 
 - ESP32BtRoamer: examples/ESP32BtRoamer/ESP32BtRoamer.ino
   - Accepts correction bytes from a phone app and feeds them to GNSS UART.
@@ -650,8 +578,6 @@ Important scope note:
 - This repository provides serial/Bluetooth transport examples only.
 
 ## Compile matrix (Arduino CLI)
-
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
 
 Verified with:
 
@@ -704,8 +630,6 @@ Notes:
 
 ## Project config header
 
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
-
 This library supports a project-local configuration file named lc29hconfig.h.
 
 Workflow:
@@ -756,8 +680,6 @@ Benefits:
 - Easy to version-control as part of each user project.
 
 ## Serial commands
-
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
 
 Use these commands in the sketch Serial Monitor (newline-terminated input).
 
@@ -936,8 +858,6 @@ Family summary:
 
 ## Command metadata schema
 
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
-
 The library now carries protocol metadata so the remaining command families can be added without inventing a new parsing shape for every wrapper.
 
 Metadata fields tracked per command:
@@ -967,8 +887,6 @@ Raw send:
 
 ## Checksum and command builder behavior
 
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
-
 Yes. The library already calculates checksums automatically when sending payloads.
 
 - sendPayload("PQTMCFGRCVRMODE,W,1")
@@ -995,8 +913,6 @@ String sentence = LC29H_GNSS::makeSentence(payload);
 ```
 
 ## Raw passthrough helpers
-
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
 
 For application stacks that need unparsed bytes:
 
@@ -1051,8 +967,6 @@ BaseSerialBridge, StreamBridge, and RoverCorrectionBridge now print periodic sta
 
 ## Error handling and host callbacks
 
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
-
 The library now exposes structured error state so host applications can react without parsing serial text:
 
 - getLastError()
@@ -1106,8 +1020,6 @@ Example integration note:
 
 ## Preset-level workflows
 
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
-
 For higher-level setup, use these one-call methods:
 
 - applyRoverPreset(outputMs, save)
@@ -1136,8 +1048,6 @@ if (r == LC29H_GNSS::PresetResult::Success && gnss.isPowerCycleRecommended()) {
 ```
 
 ## Mission profile workflows
-
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
 
 Mission profiles are higher-level wrappers that include optional verification query steps after configuration.
 
@@ -1169,8 +1079,6 @@ if (r.status == LC29H_GNSS::ProfileStatus::Success && r.powerCycleRecommended) {
 
 ## Survey-in to fixed ECEF workflow
 
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
-
 This library now supports a portable, hardware-agnostic path for preserving exact surveyed position:
 
 1. Query survey-in config/status and capture ECEF X/Y/Z from response
@@ -1192,8 +1100,6 @@ The library intentionally only holds captured ECEF in RAM. Persisting to flash/E
 
 ## Data source and traceability
 
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
-
 Command seeds came from:
 
 - Temp/Quectel GPS Documents/Software/QGNSS_V2.5_EN/Config/ModeInfo.json
@@ -1205,8 +1111,6 @@ Protocol PDFs in Temp should remain the final authority before locking API behav
 
 ## Next build targets
 
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
-
 - Parse and surface PAIR001 ACK responses and error codes
 - Add explicit save command verification per module/firmware
 - Add tested RTCM preset helpers (1005/1077/1087/etc.)
@@ -1215,13 +1119,9 @@ Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Ve
 
 ## RTCM framing and RTCM libraries
 
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
-
 UART/NMEA/Quectel config stay here. This library only frames RTCM and checks CRC-24Q so it can forward whole frames. Decoding, per-type statistics and filtering belong in a separate RTCM library chosen by the application. LC29H_GNSS never includes such a library, and its examples use only LC29H_GNSS.
 Independence contract: [docs/TinyRTCM3_Contract.md](docs/TinyRTCM3_Contract.md).
 
 ## Gated outputs / mode-specific messages
-
-Consumers can pin a minimum with `LC29H_GNSS_VERSION_*` macros in `LC29H_GNSS_Version.h` (included from the public umbrella).
 
 Survey-in status, jamming, geofence, ZDA/GRS/GST/GNS, and RTCM ephemeris often need more than a rate toggle. See **[docs/GatedOutputs.md](docs/GatedOutputs.md)**.
