@@ -1,6 +1,6 @@
 #pragma once
 // Compile-time version for consumer static_assert pins (Mozihao / Base Station).
-// Keep in sync with library.properties. TinyRTCM3 remains an optional peer — not required.
+// Keep in sync with library.properties. Optional peer RTCM helper libs stay out of this library — not required.
 
 #ifndef LC29H_GNSS_VERSION_MAJOR
 #define LC29H_GNSS_VERSION_MAJOR 0
