@@ -12,14 +12,14 @@
 // Why this is not a thin readLine() sketch:
 // - LC29H NMEA+RTCM will overrun a 256-byte UART FIFO if loop() prints or
 //   waits on USB CDC. Use UartPump drain/frame every tick.
-// - DA rover mode needs RESTOREPAR â†’ CFGRCVRMODE,W,1 â†’ PAIR081,0 â†’ rates â†’
-//   SAVEPAR â†’ PAIR023. SAVEPAR alone does not apply. Fitness nav blocks RTK.
+// - DA rover mode needs RESTOREPAR → CFGRCVRMODE,W,1 → PAIR081,0 → rates →
+//   SAVEPAR → PAIR023. SAVEPAR alone does not apply. Fitness nav blocks RTK.
 // - BLE default MTU 23 splits GGA; SW Maps does not reassemble. Wait for
 //   subscribe + large MTU, one complete sentence per notify.
 // - DA has no GST and empty GGA DiffAge; synthesize GST from PQTMEPE.
 //
 // Boot: configure GNSS (amber LED) before advertising. Connect only on blue.
-// SAVEPAR leaves module non-default â€” restore BS rates after HIL (base-station#12).
+// SAVEPAR leaves module non-default — restore BS rates after HIL (base-station#12).
 // ESP32-S3: USB CDC On Boot = CDC. Do not block forever on BLE MTU/subscribe.
 // Loop: RTCM from phone first (CRC-24Q), then pump NMEA, then staggered BLE TX.
 // GETTING_STARTED.md and this folder's README.
@@ -323,7 +323,7 @@ bool gnssStable = false;
 bool bleReadyToAdvertise = false;
 uint32_t gnssConfigStartMs = 0;
 
-// Shared SPP+BLE: NMEA pump callback and module family (must not be BLE-only â€” classic ESP32 CI uses SPP).
+// Shared SPP+BLE: NMEA pump callback and module family (must not be BLE-only — classic ESP32 CI uses SPP).
 LC29H_NmeaCompat::ModuleFamily moduleFamily = LC29H_NmeaCompat::ModuleFamily::Unknown;
 String moduleVersion;
 bool phoneRatesApplied = false;
@@ -593,7 +593,7 @@ void debugMirrorGnssRx() {
 
 void setup() {
     Serial.begin(kConsoleBaud);
-    // Do not call Serial.setTxTimeoutMs â€” absent on many esp32 core builds (CI Arduino CLI Validate).
+    // Do not call Serial.setTxTimeoutMs — absent on many esp32 core builds (CI Arduino CLI Validate).
     dbgReady();
     updateStatusLed();
     dbg.println("ESP32BtRoamer boot");

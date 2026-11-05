@@ -63,7 +63,7 @@ static void printHelp() {
     Serial.println(F("  gnss_start | gnss_stop"));
     Serial.println(F("  send <payload>"));
     Serial.println(F("  Survey-in on DA: send PQTMCFGSVIN,W,1,3600,15,0,0,0 then save then reboot."));
-    Serial.println(F("  survey_off    (PQTMCFGSVIN,W,0,0,0,0,0,0 â€” same as disableSurveyIn)"));
+    Serial.println(F("  survey_off    (PQTMCFGSVIN,W,0,0,0,0,0,0 — same as disableSurveyIn)"));
     Serial.println(F("  AccLimit 15 m starts Obs; PAIR003 sleep is not a reboot."));
 }
 

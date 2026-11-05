@@ -1,4 +1,4 @@
-#include <LC29H_GNSS.h>
+﻿#include <LC29H_GNSS.h>
 #include <LC29H_ProjectConfig.h>
 #include <lc29h_board.h>
 #if defined(ARDUINO_ARCH_ESP32)
@@ -93,11 +93,24 @@ void setup() {
 #if defined(ARDUINO_ARCH_ESP32)
         gnssPort.setTimeout(0);
 #endif
-        // queryReceiverMode() prints/parses via library (0-arg API).
-        const bool modeOk = gnss.queryReceiverMode();
-        Serial.println(modeOk ? "HIL_MODE=QUERIED" : "HIL_MODE=QUERY_FAIL");
-        Serial.println("HIL_EXAMPLE=StreamBridge STATUS=READY");
-        Serial.println("NOTE: SAVEPAR may leave module non-default; restore BS rates after HIL.");
+        // Issue #3 A / Reviewer B2: READY only when receiver mode query succeeds AND mode is base (2).
+        uint8_t receiverMode = 0;
+        const bool modeOk = gnss.getReceiverMode(receiverMode);
+        if (!modeOk) {
+            Serial.println("HIL_MODE=QUERY_FAIL");
+            Serial.println("HIL_EXAMPLE=StreamBridge STATUS=FAIL mode_query");
+            bridgeEnabled = false;
+        } else if (receiverMode != 2) {
+            Serial.print("HIL_MODE=");
+            Serial.println(receiverMode);
+            Serial.println("HIL_EXAMPLE=StreamBridge STATUS=FAIL wrong_mode_need_base2");
+            bridgeEnabled = false;
+        } else {
+            Serial.print("HIL_MODE=");
+            Serial.println(receiverMode);
+            Serial.println("HIL_EXAMPLE=StreamBridge STATUS=READY");
+            Serial.println("NOTE: SAVEPAR may leave module non-default; restore BS rates after HIL.");
+        }
     } else {
         Serial.println("HIL_EXAMPLE=StreamBridge STATUS=FAIL bringup");
     }

@@ -124,7 +124,7 @@ void setup() {
 
 void loop() {
     // processSerialCommands reads USB Serial only. Queries it sends will share
-    // the GNSS UART with the pump Ã¢â‚¬â€ type them between bursts, not during RTCM.
+    // the GNSS UART with the pump Ã¢â‚¬" type them between bursts, not during RTCM.
     gnss.processSerialCommands();
 
     if (!exampleEnabled) {

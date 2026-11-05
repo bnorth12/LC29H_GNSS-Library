@@ -48,7 +48,6 @@ LC29H_UartPump::Pump uartPump;
 #endif
 bool exampleEnabled = false;
 uint32_t lastStatusMs = 0;
-uint32_t nmeaLineDrops = 0;
 
 const char* profileStatusName(LC29H_GNSS::ProfileStatus status) {
     switch (status) {
