@@ -1,13 +1,19 @@
 #include <Arduino.h>
 #include <LC29H_NmeaFeed.h>
+#if defined(ARDUINO_ARCH_ESP32)
+#include <lc29h_board.h>
+#endif
 
 // Raw USB Serial <-> GNSS UART passthrough. No LC29H_GNSS object.
 // One reader on each side. Do not also open QGNSS on this same UART.
 // Message payloads: this folder's README and library Readme "Module messages in practice".
+// ESP32 HIL boards: use LC29H_BOARD_GNSS_* (override with -D).
 
 #if defined(ARDUINO_ARCH_AVR) && !defined(HAVE_HWSERIAL1)
 #include <SoftwareSerial.h>
 SoftwareSerial gnssPort(4, 3); // RX, TX
+#elif defined(ARDUINO_ARCH_ESP32)
+HardwareSerial& gnssPort = Serial1;
 #else
 #define gnssPort Serial1
 #endif
@@ -17,7 +23,11 @@ static const uint32_t kGnssBaud = 115200;
 
 void setup() {
     Serial.begin(kConsoleBaud);
+#if defined(ARDUINO_ARCH_ESP32)
+    gnssPort.begin(kGnssBaud, SERIAL_8N1, LC29H_BOARD_GNSS_RX_PIN, LC29H_BOARD_GNSS_TX_PIN);
+#else
     gnssPort.begin(kGnssBaud);
+#endif
     Serial.println("HIL_EXAMPLE=ReducedSerialBridge STATUS=READY");
 
     Serial.println(F("ReducedSerialBridge ready."));
