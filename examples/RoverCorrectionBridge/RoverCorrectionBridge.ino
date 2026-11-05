@@ -148,7 +148,7 @@ void loop() {
 #endif
 #if defined(ARDUINO_ARCH_ESP32)
     // Deprecated LC29H_Rtcm::Assembler/Counters removed (issue #3).
-    // Raw ingest; module CRC-checks RTCM. Prefer TinyRTCM3 for host-side CRC.
+    // Raw ingest; module CRC-checks RTCM. Prefer a host-side RTCM CRC assembler (optional peer lib).
     gnss.ingestRawAvailable(correctionLinkPort, 0, &ingressStats, kCorrectionChunkSize);
     LC29H_HostPump::tick(gnssPort, uartPump);
     Stream* nmeaDest = nullptr;
