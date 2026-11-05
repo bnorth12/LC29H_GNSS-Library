@@ -1,5 +1,6 @@
 #include <LC29H_GNSS.h>
 #include <LC29H_ProjectConfig.h>
+#include <lc29h_board.h>
 #if defined(ARDUINO_ARCH_ESP32)
 #include <LC29H_HostPump.h>
 #include <LC29H_NmeaFeed.h>
@@ -24,8 +25,8 @@ constexpr uint32_t kConsoleBaud = 115200;
 constexpr uint32_t kGnssBaud = 115200;
 
 #if defined(ARDUINO_ARCH_ESP32)
-constexpr int kGnssRxPin = 16;
-constexpr int kGnssTxPin = 17;
+constexpr int kGnssRxPin = LC29H_BOARD_GNSS_RX_PIN;
+constexpr int kGnssTxPin = LC29H_BOARD_GNSS_TX_PIN;
 HardwareSerial& gnssPort = Serial1;
 #else
 constexpr int kGnssRxPin = 4;
@@ -74,8 +75,8 @@ void setup() {
     delay(250);
 
 #if defined(ARDUINO_ARCH_ESP32)
-    LC29H_HostPump::beginGnss(
-        gnssPort, kGnssBaud, kGnssRxPin, kGnssTxPin, uartPump, LC29H_UartPump::baseStationPriorities());
+    LC29H_beginEsp32GnssUart(gnssPort, kGnssBaud, kGnssRxPin, kGnssTxPin);
+    uartPump.setPriorities(LC29H_UartPump::baseStationPriorities());  // setTimeout(0) after bring-up
 #else
     gnssPort.begin(kGnssBaud);
 #endif
@@ -96,11 +97,17 @@ void setup() {
     LC29H_BringUpResult bringUp;
     if (!LC29H_bringUp(gnss, bringUp, &Serial)) {
         printProfileResult("Bring-up", bringUp.profile);
-        return;
+return;
     }
     printProfileResult("Bring-up", bringUp.profile);
-
-    gnss.queryVersion();
+#if defined(ARDUINO_ARCH_ESP32)
+    gnssPort.setTimeout(0);
+#endif
+    Serial.println(bringUp.profile.status == LC29H_GNSS::ProfileStatus::Success
+        ? "HIL_EXAMPLE=BasicConfiguration STATUS=READY"
+        : "HIL_EXAMPLE=BasicConfiguration STATUS=FAIL");
+    Serial.println("NOTE: SAVEPAR may leave module non-default; restore BS rates after HIL.");
+gnss.queryVersion();
     gnss.queryQVersion();
     gnss.queryUniqueId();
     gnss.queryReceiverMode();
@@ -148,9 +155,9 @@ void loop() {
         const LC29H_UartPump::PumpHealth health = LC29H_HostPump::snapshotHealth(uartPump);
         Serial.print("pump frames=");
         Serial.print(health.frames);
-        Serial.print(" drops=");
+        Serial.print(" mailboxOverwrites=");
         Serial.print(health.drops);
-        Serial.print(" txDrops=");
+        Serial.print(" usbCdcBackpressureDrops=");
         Serial.print(LC29H_HostPump::txDropCount());
         Serial.print(" high=");
         Serial.println(health.drainHighWater);

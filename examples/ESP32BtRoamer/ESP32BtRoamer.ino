@@ -4,6 +4,7 @@
 #include <LC29H_UartPump.h>
 #include <LC29H_Rtcm.h>
 #include <LC29H_NmeaCompat.h>
+#include <lc29h_board.h>
 #include <string.h>
 
 // Phone-app rover (SW Maps Generic NMEA over BLE NUS, SPP on classic ESP32).
@@ -18,6 +19,8 @@
 // - DA has no GST and empty GGA DiffAge; synthesize GST from PQTMEPE.
 //
 // Boot: configure GNSS (amber LED) before advertising. Connect only on blue.
+// SAVEPAR leaves module non-default — restore BS rates after HIL (base-station#12).
+// ESP32-S3: USB CDC On Boot = CDC. Do not block forever on BLE MTU/subscribe.
 // Loop: RTCM from phone first (CRC-24Q), then pump NMEA, then staggered BLE TX.
 // GETTING_STARTED.md and this folder's README.
 //
@@ -310,8 +313,6 @@ bool extraMsgsEnabled = false;
 uint32_t lastGgaMs = 0;
 uint32_t lastRmcMs = 0;
 uint32_t lastGstMs = 0;
-LC29H_Rtcm::Counters rtcmCounters;
-LC29H_Rtcm::Assembler bleRtcmIn;
 void noteModuleVersionLine(const String& line);
 
 uint32_t nmeaLinesPrinted = 0;
@@ -564,7 +565,9 @@ inline void updateStatusLed() {}
 
 bool configureRoverAtBoot() {
     LC29H_ModuleIdentity id;
+    Serial.println("HIL_ALIVE setup=pre_bringup");
     const bool ok = LC29H_roverFactoryBringUp(gnss, &dbg, gnssPort, uartPump, updateStatusLed, &id);
+    Serial.println(ok ? "HIL_ALIVE setup=bringup_ok" : "HIL_ALIVE setup=bringup_fail");
     moduleFamily = id.family;
     extraMsgsEnabled = true;
     return ok;
@@ -717,6 +720,7 @@ void loop() {
         BLEAdvertising* advertising = BLEDevice::getAdvertising();
         if (advertising != nullptr) {
             advertising->start();
+            Serial.println("HIL_EXAMPLE=ESP32BtRoamer STATUS=READY");
             bleReadyToAdvertise = true;
             dbg.println("GNSS stable. Connect BLE now (slow blue blink).");
         }
@@ -749,17 +753,16 @@ void loop() {
         noteBtRx();
     }
 #else
-    // Phone NTRIP arrives as BLE writes, not RTCM frames. Assemble + CRC before GNSS.
-    while (bleIngress.available() > 0) {
-        const int b = bleIngress.read();
-        if (b < 0) {
-            break;
-        }
-        const uint32_t okBefore = rtcmCounters.framesOk;
-        bleRtcmIn.feed(static_cast<uint8_t>(b), gnss, &correctionIngressStats, rtcmCounters);
-        if (rtcmCounters.framesOk > okBefore) {
-            noteBtRx();
-        }
+    // Phone NTRIP arrives as BLE writes. Deprecated Assembler/Counters removed (issue #3);
+    // ingest raw bytes (module CRC-checks). Prefer TinyRTCM3 for host-side CRC.
+    const uint32_t rxBefore = correctionIngressStats.bytesRead;
+    gnss.ingestRawAvailable(
+        bleIngress,
+        0,
+        &correctionIngressStats,
+        LC29H_CFG_ROVER_CORRECTION_CHUNK_SIZE);
+    if (correctionIngressStats.bytesRead > rxBefore) {
+        noteBtRx();
     }
 #endif
 
@@ -837,9 +840,6 @@ void loop() {
         static portMUX_TYPE snapMux = portMUX_INITIALIZER_UNLOCKED;
         portENTER_CRITICAL(&snapMux);
         const LC29H_UartPump::PumpHealth health = uartPump.pumpHealth();
-        const uint32_t snapFrames = rtcmCounters.framesOk;
-        const uint32_t snapCrc = rtcmCounters.crcFails;
-        const uint16_t snapType = rtcmCounters.lastType;
         const uint32_t snapCk = uartPump.checksumFails();
         const uint32_t snapDrain = uartPump.drainOverruns();
         const uint32_t snapBtDrops = btTxDrops;
@@ -858,12 +858,8 @@ void loop() {
         dbg.print(health.drainHighWater);
         dbg.print(", pumpGap=");
         dbg.print(health.maxGapMs);
-        dbg.print(", rtcmOk=");
-        dbg.print(snapFrames);
-        dbg.print(", rtcmCrcFail=");
-        dbg.print(snapCrc);
-        dbg.print(", lastRtcm=");
-        dbg.print(snapType);
+        dbg.print(", corrBytes=");
+        dbg.print(correctionIngressStats.bytesRead);
     #endif
         dbg.print(", uptimeMs=");
         dbg.println(now);

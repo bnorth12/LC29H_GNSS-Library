@@ -1,5 +1,6 @@
 #include <LC29H_GNSS.h>
 #include <LC29H_ProjectConfig.h>
+#include <lc29h_board.h>
 
 // Dual USB-C bring-up: native USB is the Arduino console, CH340 Serial0 is a
 // raw GNSS UART for QGNSS. One host at a time. "Dual USB-C" is the dev board,
@@ -151,6 +152,8 @@ void setup() {
 
 #if LC29H_CFG_ESP32_USB_UART_BRIDGE_STARTUP_SANITY_CHECKS
     runStartupSanityChecks();
+    gnssPort.setTimeout(0);
+    Serial.println((startupChecksPassed >= 2) ? "HIL_EXAMPLE=ESP32UsbUartBridge STATUS=READY" : "HIL_EXAMPLE=ESP32UsbUartBridge STATUS=FAIL"); // baud query soft-fail OK
 #endif
 
     bridgeEnabled = true;

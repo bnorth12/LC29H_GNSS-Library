@@ -1,5 +1,6 @@
 #include <LC29H_GNSS.h>
 #include <LC29H_ProjectConfig.h>
+#include <lc29h_board.h>
 #if defined(ARDUINO_ARCH_ESP32)
 #include <LC29H_HostPump.h>
 #endif
@@ -24,10 +25,10 @@ constexpr uint32_t kLinkBaud = 115200;
 constexpr uint32_t kStatusIntervalMs = 1000;
 
 #if defined(ARDUINO_ARCH_ESP32)
-constexpr int kGnssRxPin = 16;
-constexpr int kGnssTxPin = 17;
-constexpr int kLinkRxPin = 18;
-constexpr int kLinkTxPin = 19;
+constexpr int kGnssRxPin = LC29H_BOARD_GNSS_RX_PIN;
+constexpr int kGnssTxPin = LC29H_BOARD_GNSS_TX_PIN;
+constexpr int kLinkRxPin = LC29H_BOARD_LINK_RX_PIN;
+constexpr int kLinkTxPin = LC29H_BOARD_LINK_TX_PIN;
 HardwareSerial& gnssPort = Serial1;
 HardwareSerial& linkPort = Serial2;
 #else
@@ -58,8 +59,8 @@ void setup() {
     delay(250);
 
 #if defined(ARDUINO_ARCH_ESP32)
-    LC29H_HostPump::beginGnss(
-        gnssPort, kGnssBaud, kGnssRxPin, kGnssTxPin, uartPump, LC29H_UartPump::baseStationPriorities());
+    LC29H_beginEsp32GnssUart(gnssPort, kGnssBaud, kGnssRxPin, kGnssTxPin);
+    uartPump.setPriorities(LC29H_UartPump::baseStationPriorities());  // setTimeout(0) after bring-up
     linkPort.begin(kLinkBaud, SERIAL_8N1, kLinkRxPin, kLinkTxPin);
 #else
     gnssPort.begin(kGnssBaud);
@@ -79,8 +80,27 @@ void setup() {
         return;
     }
 
+    
+#if defined(ARDUINO_ARCH_ESP32)
+    // Settle + drain before PQTM identity (live NMEA after prior sketch / BS rates).
+    delay(300);
+    while (gnssPort.available() > 0) { (void)gnssPort.read(); }
+#endif
+
     LC29H_BringUpResult bringUp;
     bridgeEnabled = LC29H_bringUp(gnss, bringUp, &Serial);
+    if (bridgeEnabled) {
+#if defined(ARDUINO_ARCH_ESP32)
+        gnssPort.setTimeout(0);
+#endif
+        // queryReceiverMode() prints/parses via library (0-arg API).
+        const bool modeOk = gnss.queryReceiverMode();
+        Serial.println(modeOk ? "HIL_MODE=QUERIED" : "HIL_MODE=QUERY_FAIL");
+        Serial.println("HIL_EXAMPLE=StreamBridge STATUS=READY");
+        Serial.println("NOTE: SAVEPAR may leave module non-default; restore BS rates after HIL.");
+    } else {
+        Serial.println("HIL_EXAMPLE=StreamBridge STATUS=FAIL bringup");
+    }
 
     bridgeMode = LC29H_projectBridgeMode();
     bridgeFilter = LC29H_projectBridgeNmeaFilter();
@@ -138,9 +158,9 @@ void loop() {
         const LC29H_UartPump::PumpHealth health = LC29H_HostPump::snapshotHealth(uartPump);
         Serial.print("pump frames=");
         Serial.print(health.frames);
-        Serial.print(" drops=");
+        Serial.print(" mailboxOverwrites=");
         Serial.print(health.drops);
-        Serial.print(" txDrops=");
+        Serial.print(" usbCdcBackpressureDrops=");
         Serial.print(LC29H_HostPump::txDropCount());
         Serial.print(" high=");
         Serial.println(health.drainHighWater);

@@ -18,6 +18,7 @@ static const uint32_t kGnssBaud = 115200;
 void setup() {
     Serial.begin(kConsoleBaud);
     gnssPort.begin(kGnssBaud);
+    Serial.println("HIL_EXAMPLE=ReducedSerialBridge STATUS=READY");
 
     Serial.println(F("ReducedSerialBridge ready."));
     Serial.println(F("Raw passthrough: USB Serial <-> GNSS UART (one reader on each side)."));

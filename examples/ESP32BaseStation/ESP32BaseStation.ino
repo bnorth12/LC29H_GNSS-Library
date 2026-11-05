@@ -1,5 +1,6 @@
 #include <LC29H_GNSS.h>
 #include <LC29H_ProjectConfig.h>
+#include <lc29h_board.h>
 #include <LC29H_HostPump.h>
 #include <LC29H_NmeaFeed.h>
 
@@ -64,8 +65,8 @@ void setup() {
     Serial.begin(kConsoleBaud);
     delay(250);
 
-    LC29H_HostPump::beginGnss(
-        gnssPort, kGnssBaud, kGnssRxPin, kGnssTxPin, uartPump, LC29H_UartPump::baseStationPriorities());
+    LC29H_beginEsp32GnssUart(gnssPort, kGnssBaud, kGnssRxPin, kGnssTxPin);
+    uartPump.setPriorities(LC29H_UartPump::baseStationPriorities());  // setTimeout(0) after bring-up
     rtcmPort.begin(kRtcmBaud, SERIAL_8N1, kRtcmRxPin, kRtcmTxPin);
 
     gnss.attachConsole(Serial);
@@ -94,10 +95,15 @@ void setup() {
 
     LC29H_BringUpResult bringUp;
     if (!LC29H_bringUp(gnss, bringUp, &Serial)) {
-        Serial.print("Bring-up failed, status=");
+        Serial.print("HIL_EXAMPLE=ESP32BaseStation STATUS=FAIL bringup=");
         Serial.println(profileStatusName(bringUp.profile.status));
         return;
     }
+#if defined(ARDUINO_ARCH_ESP32)
+    gnssPort.setTimeout(0);
+#endif
+    Serial.println("HIL_EXAMPLE=ESP32BaseStation STATUS=READY");
+    Serial.println("NOTE: SAVEPAR may leave module non-default; restore BS rates after HIL.");
 
     bridgeMode = LC29H_projectBridgeMode();
     bridgeFilter = LC29H_projectBridgeNmeaFilter();
@@ -118,7 +124,7 @@ void setup() {
 
 void loop() {
     // processSerialCommands reads USB Serial only. Queries it sends will share
-    // the GNSS UART with the pump — type them between bursts, not during RTCM.
+    // the GNSS UART with the pump Ã¢â‚¬â€ type them between bursts, not during RTCM.
     gnss.processSerialCommands();
 
     if (!exampleEnabled) {
@@ -144,7 +150,7 @@ void loop() {
         Serial.print(health.frames);
         Serial.print(", drops=");
         Serial.print(health.drops);
-        Serial.print(" txDrops=");
+        Serial.print(" usbCdcBackpressureDrops=");
         Serial.print(LC29H_HostPump::txDropCount());
         Serial.print(", high=");
         Serial.print(health.drainHighWater);

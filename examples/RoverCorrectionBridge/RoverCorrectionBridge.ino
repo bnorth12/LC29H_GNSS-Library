@@ -1,8 +1,8 @@
 #include <LC29H_GNSS.h>
 #include <LC29H_ProjectConfig.h>
+#include <lc29h_board.h>
 #if defined(ARDUINO_ARCH_ESP32)
 #include <LC29H_HostPump.h>
-#include <LC29H_Rtcm.h>
 #endif
 
 // Bench rover half of a wired pair. RTCM from the link UART into GNSS, then
@@ -45,10 +45,10 @@ constexpr size_t kCorrectionChunkSize = 256;
 #endif
 
 #if defined(ARDUINO_ARCH_ESP32)
-constexpr int kGnssRxPin = 16;
-constexpr int kGnssTxPin = 17;
-constexpr int kLinkRxPin = 18;
-constexpr int kLinkTxPin = 19;
+constexpr int kGnssRxPin = LC29H_BOARD_GNSS_RX_PIN;
+constexpr int kGnssTxPin = LC29H_BOARD_GNSS_TX_PIN;
+constexpr int kLinkRxPin = LC29H_BOARD_LINK_RX_PIN;
+constexpr int kLinkTxPin = LC29H_BOARD_LINK_TX_PIN;
 HardwareSerial& gnssPort = Serial1;
 HardwareSerial& correctionLinkPort = Serial2;
 #else
@@ -64,8 +64,6 @@ LC29H_GNSS gnss(gnssPort, &Serial);
 LC29H_GNSS::RawIngressStats ingressStats;
 #if defined(ARDUINO_ARCH_ESP32)
 LC29H_UartPump::Pump uartPump;
-LC29H_Rtcm::Assembler rtcmIn;
-LC29H_Rtcm::Counters rtcmCounters;
 #endif
 LC29H_GNSS::BridgeState bridgeState;
 LC29H_GNSS::BridgeStats bridgeStats;
@@ -81,8 +79,8 @@ void setup() {
     delay(250);
 
 #if defined(ARDUINO_ARCH_ESP32)
-    LC29H_HostPump::beginGnss(
-        gnssPort, kGnssBaud, kGnssRxPin, kGnssTxPin, uartPump, LC29H_UartPump::roverGisPriorities());
+    LC29H_beginEsp32GnssUart(gnssPort, kGnssBaud, kGnssRxPin, kGnssTxPin);
+    uartPump.setPriorities(LC29H_UartPump::roverGisPriorities());  // setTimeout(0) after bring-up
     correctionLinkPort.begin(kLinkBaud, SERIAL_8N1, kLinkRxPin, kLinkTxPin);
 #else
     gnssPort.begin(kGnssBaud);
@@ -108,8 +106,24 @@ void setup() {
         return;
     }
 
+    
+#if defined(ARDUINO_ARCH_ESP32)
+    // Settle + drain before PQTM identity (live NMEA after prior sketch / BS rates).
+    delay(300);
+    while (gnssPort.available() > 0) { (void)gnssPort.read(); }
+#endif
+
     LC29H_BringUpResult bringUp;
     roverEnabled = LC29H_bringUp(gnss, bringUp, &Serial);
+    if (roverEnabled) {
+#if defined(ARDUINO_ARCH_ESP32)
+        gnssPort.setTimeout(0);
+#endif
+        Serial.println("HIL_EXAMPLE=RoverCorrectionBridge STATUS=READY");
+        Serial.println("NOTE: SAVEPAR may leave module non-default; restore BS rates after HIL.");
+    } else {
+        Serial.println("HIL_EXAMPLE=RoverCorrectionBridge STATUS=FAIL bringup");
+    }
 
     bridgeMode = LC29H_projectBridgeMode();
     bridgeFilter = LC29H_projectBridgeNmeaFilter();
@@ -133,15 +147,9 @@ void loop() {
     correctionLinkPort.listen();
 #endif
 #if defined(ARDUINO_ARCH_ESP32)
-    // Assemble complete RTCM3 frames (CRC-24Q) before writeRaw. Partial BLE/UART
-    // chunks are not valid messages; dumping them poisons the GNSS parser.
-    while (correctionLinkPort.available() > 0) {
-        const int b = correctionLinkPort.read();
-        if (b < 0) {
-            break;
-        }
-        rtcmIn.feed(static_cast<uint8_t>(b), gnss, &ingressStats, rtcmCounters);
-    }
+    // Deprecated LC29H_Rtcm::Assembler/Counters removed (issue #3).
+    // Raw ingest; module CRC-checks RTCM. Prefer TinyRTCM3 for host-side CRC.
+    gnss.ingestRawAvailable(correctionLinkPort, 0, &ingressStats, kCorrectionChunkSize);
     LC29H_HostPump::tick(gnssPort, uartPump);
     Stream* nmeaDest = nullptr;
     if (kForwardNmeaToLink) {
@@ -182,9 +190,9 @@ void loop() {
         const LC29H_UartPump::PumpHealth health = LC29H_HostPump::snapshotHealth(uartPump);
         Serial.print("pump frames=");
         Serial.print(health.frames);
-        Serial.print(" drops=");
+        Serial.print(" mailboxOverwrites=");
         Serial.print(health.drops);
-        Serial.print(" txDrops=");
+        Serial.print(" usbCdcBackpressureDrops=");
         Serial.print(LC29H_HostPump::txDropCount());
         Serial.print(" ckFail=");
         Serial.print(uartPump.checksumFails());
@@ -194,12 +202,6 @@ void loop() {
         Serial.print(health.drainHighWater);
         Serial.print(" gap=");
         Serial.print(health.maxGapMs);
-        Serial.print(" rtcmOk=");
-        Serial.print(rtcmCounters.framesOk);
-        Serial.print(" rtcmCrcFail=");
-        Serial.print(rtcmCounters.crcFails);
-        Serial.print(" lastRtcm=");
-        Serial.println(rtcmCounters.lastType);
 #endif
         if (kForwardNmeaToLink) {
             LC29H_GNSS::printBridgeStatus(Serial, "RoverNmeaForward", bridgeMode, bridgeStats, now);

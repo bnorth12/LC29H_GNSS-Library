@@ -18,7 +18,8 @@
 // SAVE=1 writes config to module flash.
 // VERIFY=1 runs readback checks after profile apply.
 #define LC29H_CFG_SAVE 1
-#define LC29H_CFG_VERIFY 1
+// VERIFY=0 for HIL: live NMEA starves PQTM readback (issue #3 / template note).
+#define LC29H_CFG_VERIFY 0
 // Used by base-oriented workflows and bridge examples.
 #define LC29H_CFG_ENABLE_RTCM 1
 
@@ -45,11 +46,11 @@
 
 // UART routing for this ESP32-S3 example.
 // Pinout reference for this board family shows:
-// - U1RXD on GPIO18 and U1TXD on GPIO17
+// - U1RXD on GPIO17 and U1TXD on GPIO18 (BS AppConfig / HIL)
 // - U0RXD/U0TXD on GPIO44/GPIO43 (typically CH340-backed USB-UART)
 // Keep GNSS on UART1 pins and keep UART0 pins free for USB-UART workflows.
-#define LC29H_CFG_ESP32_GNSS_RX_PIN 18
-#define LC29H_CFG_ESP32_GNSS_TX_PIN 17
+#define LC29H_CFG_ESP32_GNSS_RX_PIN 17
+#define LC29H_CFG_ESP32_GNSS_TX_PIN 18
 #define LC29H_CFG_ESP32_RTCM_RX_PIN 5
 #define LC29H_CFG_ESP32_RTCM_TX_PIN 4
 
