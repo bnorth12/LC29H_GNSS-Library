@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 // Example-local project config for ESP32BaseStation.
 // Dual USB-C ESP32-S3 boards vary by carrier wiring, so keep UART GPIOs here.
@@ -18,7 +18,8 @@
 // SAVE=1 writes config to module flash.
 // VERIFY=1 runs readback checks after profile apply.
 #define LC29H_CFG_SAVE 1
-#define LC29H_CFG_VERIFY 1
+// VERIFY=0 for HIL: live NMEA starves PQTM readback (issue #3 / template note).
+#define LC29H_CFG_VERIFY 0
 // Used by base-oriented workflows and bridge examples.
 #define LC29H_CFG_ENABLE_RTCM 1
 
@@ -43,15 +44,21 @@
 #define LC29H_CFG_LOCAL_DEBUG_OUTPUT_RAW_BINARY 2
 #define LC29H_CFG_LOCAL_DEBUG_OUTPUT_MODE LC29H_CFG_LOCAL_DEBUG_OUTPUT_NMEA_ONLY
 
-// UART routing for this ESP32-S3 example.
-// Pinout reference for this board family shows:
-// - U1RXD on GPIO18 and U1TXD on GPIO17
-// - U0RXD/U0TXD on GPIO44/GPIO43 (typically CH340-backed USB-UART)
-// Keep GNSS on UART1 pins and keep UART0 pins free for USB-UART workflows.
-#define LC29H_CFG_ESP32_GNSS_RX_PIN 18
-#define LC29H_CFG_ESP32_GNSS_TX_PIN 17
-#define LC29H_CFG_ESP32_RTCM_RX_PIN 5
-#define LC29H_CFG_ESP32_RTCM_TX_PIN 4
+// UART routing: defaults from lc29h_board.h so -DLC29H_BOARD_GNSS_RX_PIN=... reaches UART begin.
+// Intentional per-sketch overrides still work via LC29H_CFG_ESP32_* before include, or BOARD -D.
+#include <lc29h_board.h>
+#ifndef LC29H_CFG_ESP32_GNSS_RX_PIN
+#define LC29H_CFG_ESP32_GNSS_RX_PIN LC29H_BOARD_GNSS_RX_PIN
+#endif
+#ifndef LC29H_CFG_ESP32_GNSS_TX_PIN
+#define LC29H_CFG_ESP32_GNSS_TX_PIN LC29H_BOARD_GNSS_TX_PIN
+#endif
+#ifndef LC29H_CFG_ESP32_RTCM_RX_PIN
+#define LC29H_CFG_ESP32_RTCM_RX_PIN LC29H_BOARD_CORR_RX_PIN
+#endif
+#ifndef LC29H_CFG_ESP32_RTCM_TX_PIN
+#define LC29H_CFG_ESP32_RTCM_TX_PIN LC29H_BOARD_CORR_TX_PIN
+#endif
 
 // Retry policy for command/query/raw transport failures.
 #define LC29H_CFG_RECOVERY_COMMAND_RETRIES 1

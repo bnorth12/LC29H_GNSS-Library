@@ -1,5 +1,6 @@
 #include <LC29H_GNSS.h>
 #include <LC29H_ProjectConfig.h>
+#include <lc29h_board.h>
 #if defined(ARDUINO_ARCH_ESP32)
 #include <LC29H_UartPump.h>
 #include <LC29H_HostPump.h>
@@ -8,17 +9,14 @@
 
 // Simple rover: RTCM in is the mission; GGA/RMC out for GIS.
 //
-// Why ESP32 uses UartPump instead of while(readLine): a live LC29H can emit
-// GSV+GSA faster than Serial.println. Unbounded readLine starves the correction
-// UART and overflows the GNSS RX FIFO. Drain/frame every loop; ingest RTCM first.
+// Boot: identify PQTMVERNO, rover mode, SAVEPAR, PAIR023 on DA/EA.
+// Do NOT set GNSS UART read timeout to 0 until after bring-up — zero timeout
+// under 10 Hz NMEA starves reply matching (issue #3 Scope B).
 //
-// Boot calls LC29H_bringUp() which identifies PQTMVERNO, then rover mode,
-// SAVEPAR, PAIR023 on DA/EA. Swap modules later: Serial "module_reinit rover".
-// AVR: no pump (SRAM). NMEA only; use RoverCorrectionBridge for a second UART.
+// SAVEPAR / module flash: LC29H_CFG_SAVE=1 writes rover rates/mode into the
+// module. Restore the base-station message-rate set afterward (#12).
 //
-// Minimum verified hardware:
-// - Arduino Mega 2560 class (AVR Uno/Nano class boards run out of RAM)
-// - ESP32 class boards are also supported via their dedicated paths
+// ESP32-S3: USB CDC On Boot = CDC. Pins from lc29h_board.h (RX17/TX18).
 
 #if !defined(ARDUINO_ARCH_ESP32)
 #include <SoftwareSerial.h>
@@ -26,15 +24,15 @@
 
 namespace {
 constexpr uint32_t kConsoleBaud = 115200;
-constexpr uint32_t kGnssBaud = 115200;
+constexpr uint32_t kGnssBaud = LC29H_BOARD_GNSS_BAUD;
 constexpr uint32_t kCorrBaud = 115200;
 constexpr uint32_t kStatusIntervalMs = 1000;
 
 #if defined(ARDUINO_ARCH_ESP32)
-constexpr int kGnssRxPin = 16;
-constexpr int kGnssTxPin = 17;
-constexpr int kCorrRxPin = 5;
-constexpr int kCorrTxPin = 4;
+constexpr int kGnssRxPin = LC29H_BOARD_GNSS_RX_PIN;
+constexpr int kGnssTxPin = LC29H_BOARD_GNSS_TX_PIN;
+constexpr int kCorrRxPin = LC29H_BOARD_CORR_RX_PIN;
+constexpr int kCorrTxPin = LC29H_BOARD_CORR_TX_PIN;
 HardwareSerial& gnssPort = Serial1;
 HardwareSerial& corrPort = Serial2;
 #else
@@ -73,7 +71,7 @@ void setup() {
 
 #if defined(ARDUINO_ARCH_ESP32)
     LC29H_beginEsp32GnssUart(gnssPort, kGnssBaud, kGnssRxPin, kGnssTxPin);
-    gnssPort.setTimeout(0);
+    // Keep default (blocking) timeout through bring-up / verify.
     uartPump.setPriorities(LC29H_UartPump::roverGisPriorities());
     corrPort.begin(kCorrBaud, SERIAL_8N1, kCorrRxPin, kCorrTxPin);
 #else
@@ -85,10 +83,15 @@ void setup() {
 
     Serial.println();
     Serial.println("SimpleRover example");
-    Serial.println("Mission: RTCM in, GGA+RMC out (GIS). GSV every 10 s.");
+    Serial.print("GNSS UART RX=");
+    Serial.print(kGnssRxPin);
+    Serial.print(" TX=");
+    Serial.println(kGnssTxPin);
+    Serial.println("Mission: RTCM in, GGA+RMC out (GIS).");
+    Serial.println("NOTE: SAVEPAR may leave the module non-default; restore BS rates after HIL.");
 
     if (!LC29H_projectConfigAvailable()) {
-        Serial.println("lc29hconfig.h is required. Copy lc29hconfig.h.template into your sketch folder and rename it.");
+        Serial.println("HIL_EXAMPLE=SimpleRover STATUS=DISABLED reason=no_lc29hconfig");
         return;
     }
 
@@ -96,8 +99,14 @@ void setup() {
     if (!LC29H_bringUp(gnss, bringUp, &Serial)) {
         Serial.print("Bring-up failed, status=");
         Serial.println(profileStatusName(bringUp.profile.status));
+        Serial.print("HIL_EXAMPLE=SimpleRover STATUS=FAIL bringup=");
+        Serial.println(profileStatusName(bringUp.profile.status));
         return;
     }
+
+#if defined(ARDUINO_ARCH_ESP32)
+    gnssPort.setTimeout(0);
+#endif
 
     exampleEnabled = true;
     Serial.print("Detected module family=");
@@ -112,10 +121,8 @@ void setup() {
 #else
     Serial.println("AVR build: NMEA only. Use RoverCorrectionBridge to ingest RTCM.");
 #endif
-    Serial.println("Rover ready. Type help for commands.");
+    Serial.println("HIL_EXAMPLE=SimpleRover STATUS=READY");
 }
-
-static uint32_t nmeaLineDrops = 0;
 
 void loop() {
 #if !defined(ARDUINO_AVR_MEGA2560)
@@ -126,51 +133,31 @@ void loop() {
     }
 
 #if defined(ARDUINO_ARCH_ESP32)
-    // Corrections first. Printing NMEA before this will drop MSM/1005.
     gnss.ingestRawAvailable(corrPort, 0, &corrStats, 256);
-    uartPump.drain(gnssPort);  // empty the driver FIFO (overwrite-oldest ring)
-    uartPump.frame();          // NMEA XOR + RTCM length; bad checksums counted
-    uartPump.processNmea(8, [](const char* line, void*) {
-        if (line == nullptr) {
-            return;
-        }
-        struct EncodeSink {
-            bool encode(char) { return true; }
-        };
-        static EncodeSink sink;
-        LC29H_NmeaFeed::feedTinyGpsPlus(sink, line);
-        const size_t lineLen = strlen(line);
-        if (Serial.availableForWrite() < static_cast<int>(lineLen + 2)) {
-            ++nmeaLineDrops;
-            return;
-        }
-        Serial.println(line);
-    }, nullptr);
-#else
-    String line;
-    while (gnss.readLine(line, 0)) {
-        Serial.println(line);
-    }
-#endif
+    LC29H_HostPump::tick(gnssPort, uartPump);
+    LC29H_HostPump::processTo(uartPump, nullptr, &Serial);
+    // Note: RTCM from GNSS is uncommon on rover; nullptr OK. Corr path is Serial2 ingest.
 
-#if defined(ARDUINO_ARCH_ESP32)
     const uint32_t now = millis();
     if ((now - lastStatusMs) >= kStatusIntervalMs) {
         LC29H_GNSS::printRawIngressStatus(Serial, "SimpleRover", corrStats, now);
         const LC29H_UartPump::PumpHealth health = LC29H_HostPump::snapshotHealth(uartPump);
         Serial.print("pump frames=");
         Serial.print(health.frames);
-        Serial.print(" drops=");
+        Serial.print(" mailboxOverwrites=");
         Serial.print(health.drops);
-        Serial.print(" txDrops=");
+        Serial.print(" usbCdcBackpressureDrops=");
         Serial.print(LC29H_HostPump::txDropCount());
-        Serial.print(" nmeaDrops=");
-        Serial.print(nmeaLineDrops);
         Serial.print(" high=");
         Serial.print(health.drainHighWater);
         Serial.print(" gap=");
         Serial.println(health.maxGapMs);
         lastStatusMs = now;
+    }
+#else
+    String line;
+    while (gnss.readLine(line, 0)) {
+        Serial.println(line);
     }
 #endif
 }

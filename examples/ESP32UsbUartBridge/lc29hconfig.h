@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 // Example-local project config for ESP32UsbUartBridge.
 // Native USB Serial is the console. Serial0 is the CH340-backed USB-UART port.
@@ -44,11 +44,17 @@
 #define LC29H_CFG_LOCAL_DEBUG_OUTPUT_RAW_BINARY 2
 #define LC29H_CFG_LOCAL_DEBUG_OUTPUT_MODE LC29H_CFG_LOCAL_DEBUG_OUTPUT_NONE
 
-// Serial1 routing to the GNSS module.
-// Board pinout labels UART1 as U1RXD=GPIO18 and U1TXD=GPIO17.
-#define LC29H_CFG_ESP32_GNSS_RX_PIN 18
-#define LC29H_CFG_ESP32_GNSS_TX_PIN 17
-#define LC29H_CFG_ESP32_GNSS_BAUD 115200
+// Serial1 GNSS pins/baud: defaults from lc29h_board.h (-DLC29H_BOARD_GNSS_* reaches begin).
+#include <lc29h_board.h>
+#ifndef LC29H_CFG_ESP32_GNSS_RX_PIN
+#define LC29H_CFG_ESP32_GNSS_RX_PIN LC29H_BOARD_GNSS_RX_PIN
+#endif
+#ifndef LC29H_CFG_ESP32_GNSS_TX_PIN
+#define LC29H_CFG_ESP32_GNSS_TX_PIN LC29H_BOARD_GNSS_TX_PIN
+#endif
+#ifndef LC29H_CFG_ESP32_GNSS_BAUD
+#define LC29H_CFG_ESP32_GNSS_BAUD LC29H_BOARD_GNSS_BAUD
+#endif
 
 // Serial0 is exposed through the dev board's CH340-backed USB-C connector.
 #define LC29H_CFG_ESP32_USB_UART_BRIDGE_BAUD 115200

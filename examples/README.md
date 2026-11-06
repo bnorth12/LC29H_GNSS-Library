@@ -1,8 +1,17 @@
 # LC29H_GNSS examples
 
+## Board pins and HIL notes (issue #3)
+
+- Default ESP32 GNSS UART pins come from `lc29h_board.h`: **RX=17, TX=18** (Base Station / N16R8 HIL). Override with `-DLC29H_BOARD_GNSS_RX_PIN=…` / `TX`.
+- ESP32-S3 Arduino: **Tools → USB CDC On Boot = CDC** so native USB (COM12) is the console.
+- Start the UART pump / `setTimeout(0)` **after** bring-up so PQTM replies can match under live NMEA.
+- Drain RTCM every loop with `LC29H_HostPump::processTo` (pass a discard `Stream` if you do not forward).
+- Examples with `LC29H_CFG_SAVE=1` call **SAVEPAR** and leave the module non-default — restore the base-station message-rate set afterward (esp32s3-lc29h-base-station#12).
+- Status lines: `mailboxOverwrites` = pump mailbox pressure; `usbCdcBackpressureDrops` = USB CDC could not accept a write (not GNSS UART loss).
+
 **Start with [GETTING_STARTED.md](../GETTING_STARTED.md)** if you have not used this library. It says which example to open, what boot must do, field pitfalls, and **Quectel Download Zone / RTK links** (you still need those PDFs).
 
-Each folder is a complete Arduino sketch. Open the `.ino`, edit that folder’s `lc29hconfig.h` (where present), and flash.
+Each folder is a complete Arduino sketch. Open the `.ino`, edit that folder's `lc29hconfig.h` (where present), and flash.
 
 Sketches stay smaller than a full NTRIP/Wi-Fi app. They show how to talk to the module:
 
@@ -26,6 +35,6 @@ Sketches stay smaller than a full NTRIP/Wi-Fi app. They show how to talk to the 
 | [ESP32BtRoamer](ESP32BtRoamer/) | Phone Bluetooth rover |
 | [ESP32UsbUartBridge](ESP32UsbUartBridge/) | QGNSS passthrough on dual USB-C |
 | [ReducedCommandConsole](ReducedCommandConsole/) | Tiny SRAM typed payloads |
-| [ReducedSerialBridge](ReducedSerialBridge/) | Tiny SRAM raw USB↔GNSS |
+| [ReducedSerialBridge](ReducedSerialBridge/) | Tiny SRAM raw USBâ†”GNSS |
 
 Each folder has its own README that matches the comments at the top of the sketch. What the PQTM/PAIR/NMEA/RTCM payloads actually do (the part the Quectel PDF leaves thin) is in the library README: **[Module messages in practice](../README.md#module-messages-in-practice)**.

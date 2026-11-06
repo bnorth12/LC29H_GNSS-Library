@@ -17,7 +17,8 @@
 // SAVE=1 writes config to module flash.
 // VERIFY=1 runs readback checks after profile apply.
 #define LC29H_CFG_SAVE 1
-#define LC29H_CFG_VERIFY 1
+// VERIFY=0 for HIL: live NMEA starves PQTM readback (issue #3 / template note).
+#define LC29H_CFG_VERIFY 0
 // Used by base-oriented workflows and bridge examples.
 #define LC29H_CFG_ENABLE_RTCM 1
 

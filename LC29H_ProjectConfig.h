@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <LC29H_GNSS.h>
 #include <LC29H_MessageSchedule.h>
@@ -431,17 +431,36 @@ inline bool LC29H_bringUp(LC29H_GNSS& gnss, LC29H_BringUpResult& out, Stream* lo
         cfg.mode == 1 &&
         cfg.minDur == static_cast<uint32_t>(LC29H_CFG_SURVEY_MIN_TIME_SEC) &&
         LC29H_accLimitMatches(cfg.accLimitM, LC29H_CFG_SURVEY_MIN_STDDEV_M)) {
-        out.adoptedLiveSurveyIn = true;
-        out.profile.status = LC29H_GNSS::ProfileStatus::Success;
-        out.profile.powerCycleRecommended = false;
-        if (log != nullptr) {
-            log->print("Adopting live survey-in MinDur=");
-            log->print(cfg.minDur);
-            log->println(" (skipping CFGSVIN/PAIR023 so Obs is not reset).");
+        // Issue #3 A: survey-config match alone is not enough — require receiver mode base (2).
+        // Matching SVIN while still rover was the prior false-adopt failure mode.
+        uint8_t receiverMode = 0;
+        const bool modeQueryOk = gnss.getReceiverMode(receiverMode);
+        if (!modeQueryOk || receiverMode != 2) {
+            if (log != nullptr) {
+                log->print("Survey-adopt refused: receiver mode=");
+                if (!modeQueryOk) {
+                    log->print("QUERY_FAIL");
+                } else {
+                    log->print(receiverMode);
+                }
+                log->println(" (need base=2 with matching survey config).");
+            }
+            // Fall through to applyProjectConfig rather than claiming adopt success.
+        } else {
+            out.adoptedLiveSurveyIn = true;
+            out.profile.status = LC29H_GNSS::ProfileStatus::Success;
+            out.profile.powerCycleRecommended = false;
+            if (log != nullptr) {
+                log->print("Adopting live survey-in MinDur=");
+                log->print(cfg.minDur);
+                log->print(" receiverMode=");
+                log->print(receiverMode);
+                log->println(" (skipping CFGSVIN/PAIR023 so Obs is not reset).");
+            }
+            LC29H_MessageSchedule::applyBaseStatusRates(gnss);
+            gnss.saveConfig();
+            return true;
         }
-        LC29H_MessageSchedule::applyBaseStatusRates(gnss);
-        gnss.saveConfig();
-        return true;
     }
 
     if (!LC29H_applyProjectConfig(gnss, out.profile) ||
